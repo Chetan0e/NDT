@@ -17,14 +17,14 @@ const CHART_OPTS = {
     maintainAspectRatio: false,
     plugins: {
         legend: {
-            labels: { color: '#7aa3cc', font: { size: 12, family: 'Inter' } },
+            labels: { color: '#475569', font: { size: 12, family: 'Inter' } },
         },
         tooltip: {
-            backgroundColor: '#0e1a2e',
-            borderColor: 'rgba(0,200,255,0.3)',
+            backgroundColor: '#ffffff',
+            borderColor: '#e2e8f0',
             borderWidth: 1,
-            titleColor: '#e8f4ff',
-            bodyColor: '#7aa3cc',
+            titleColor: '#0f172a',
+            bodyColor: '#475569',
             callbacks: {
                 label: ctx => ` ${ctx.parsed.y.toFixed(2)} cc`,
             },
@@ -32,16 +32,16 @@ const CHART_OPTS = {
     },
     scales: {
         x: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#4a6b8a', font: { size: 11 } },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { color: '#64748b', font: { size: 11 } },
         },
         y: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#4a6b8a', font: { size: 11 } },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { color: '#64748b', font: { size: 11 } },
             title: {
                 display: true,
                 text: 'Volume (cc)',
-                color: '#7aa3cc',
+                color: '#475569',
                 font: { size: 11 },
             },
         },
@@ -92,9 +92,9 @@ export default function Graph({ times, volumes, scanHistory }) {
             {
                 label: 'Observed Volume',
                 data: actualData,
-                borderColor: '#00c8ff',
-                backgroundColor: 'rgba(0,200,255,0.1)',
-                pointBackgroundColor: '#00c8ff',
+                borderColor: '#0284c7',
+                backgroundColor: 'rgba(2,132,199,0.1)',
+                pointBackgroundColor: '#0284c7',
                 pointRadius: 6,
                 pointHoverRadius: 9,
                 borderWidth: 2.5,
@@ -105,9 +105,9 @@ export default function Graph({ times, volumes, scanHistory }) {
             {
                 label: 'Predicted Volume',
                 data: predData,
-                borderColor: '#7c4dff',
-                backgroundColor: 'rgba(124,77,255,0.08)',
-                pointBackgroundColor: '#7c4dff',
+                borderColor: '#4f46e5',
+                backgroundColor: '#e0e7ff',
+                pointBackgroundColor: '#4f46e5',
                 pointRadius: 6,
                 pointHoverRadius: 9,
                 borderWidth: 2.5,
@@ -142,7 +142,7 @@ export default function Graph({ times, volumes, scanHistory }) {
             </div>
 
             {error && (
-                <div style={{ padding: '10px 14px', background: 'rgba(255,82,82,0.1)', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--red)' }}>
+                <div style={{ padding: '10px 14px', background: '#fee2e2', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--red)' }}>
                     ⚠️ {error}
                 </div>
             )}

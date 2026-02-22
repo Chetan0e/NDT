@@ -55,7 +55,7 @@ export default function PatientPanel({ patient: initialPatient }) {
     const Toggle = ({ label, value, onChange }) => (
         <div onClick={() => onChange(!value)} style={{
             display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-            padding: '10px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, marginBottom: 10,
+            padding: '10px 14px', background: 'rgba(0,0,0,0.05)', borderRadius: 8, marginBottom: 10,
             border: `1px solid ${value ? 'var(--cyan)' : 'var(--border)'}`,
         }}>
             <div style={{
@@ -100,8 +100,8 @@ export default function PatientPanel({ patient: initialPatient }) {
             {msg && (
                 <div style={{
                     padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13,
-                    background: msg.type === 'success' ? 'rgba(0,230,118,0.1)' : 'rgba(255,82,82,0.1)',
-                    border: `1px solid ${msg.type === 'success' ? 'rgba(0,230,118,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                    background: msg.type === 'success' ? 'rgba(0,230,118,0.1)' : '#fee2e2',
+                    border: `1px solid ${msg.type === 'success' ? 'rgba(0,230,118,0.3)' : '#fecaca'}`,
                     color: msg.type === 'success' ? 'var(--green)' : 'var(--red)',
                 }}>
                     {msg.text}

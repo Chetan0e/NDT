@@ -145,7 +145,7 @@ export default function Upload({ patient, scanHistory, onScanResult }) {
 
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '12px 14px', background: 'rgba(255,255,255,0.04)',
+                        padding: '12px 14px', background: 'rgba(0,0,0,0.05)',
                         borderRadius: 8, cursor: 'pointer', marginBottom: 16,
                         border: `1px solid ${extractR ? 'var(--cyan)' : 'var(--border)'}`,
                     }} onClick={() => setExtractR(v => !v)}>
@@ -175,14 +175,14 @@ export default function Upload({ patient, scanHistory, onScanResult }) {
                     >
                         {loading ? (
                             <>
-                                <div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                                <div style={{ width: 16, height: 16, border: '2px solid rgba(0,0,0,0.1)', borderTopColor: '#0284c7', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
                                 Processing…
                             </>
                         ) : '🚀 Run Segmentation'}
                     </button>
 
                     {error && (
-                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,82,82,0.1)', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: '#fee2e2', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
                             ⚠️ {error}
                         </div>
                     )}

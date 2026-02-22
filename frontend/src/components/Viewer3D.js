@@ -240,11 +240,11 @@ export default function Viewer3D({ volumeData }) {
                     <div className="card">
                         <div className="card-title">Legend</div>
                         {[
-                            { color: '#1a3a5c', label: 'Brain tissue' },
-                            { color: '#00c8ff', label: 'Brain surface (wireframe)' },
-                            { color: '#ff5252', label: 'Tumor (untreated)' },
-                            { color: '#ffab40', label: 'Tumor (mild therapy)' },
-                            { color: '#00e676', label: 'Tumor (aggressive therapy)' },
+                            { color: '#e2e8f0', label: 'Brain tissue' },
+                            { color: '#0284c7', label: 'Brain surface (wireframe)' },
+                            { color: '#ef4444', label: 'Tumor (untreated)' },
+                            { color: '#f59e0b', label: 'Tumor (mild therapy)' },
+                            { color: '#10b981', label: 'Tumor (aggressive therapy)' },
                         ].map(item => (
                             <div key={item.label} className="stat-row">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

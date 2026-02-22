@@ -15,34 +15,34 @@ const CHART_OPTS = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-        legend: { labels: { color: '#7aa3cc', font: { size: 12 } } },
+        legend: { labels: { color: '#475569', font: { size: 12 } } },
         tooltip: {
-            backgroundColor: '#0e1a2e',
-            borderColor: 'rgba(0,200,255,0.3)',
+            backgroundColor: '#ffffff',
+            borderColor: '#e2e8f0',
             borderWidth: 1,
-            titleColor: '#e8f4ff',
-            bodyColor: '#7aa3cc',
+            titleColor: '#0f172a',
+            bodyColor: '#475569',
         },
     },
     scales: {
         x: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#4a6b8a', font: { size: 10 }, maxTicksLimit: 10 },
-            title: { display: true, text: 'Day', color: '#7aa3cc', font: { size: 11 } },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 10 },
+            title: { display: true, text: 'Day', color: '#475569', font: { size: 11 } },
         },
         y: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#4a6b8a', font: { size: 11 } },
-            title: { display: true, text: 'Volume (cc)', color: '#7aa3cc', font: { size: 11 } },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { color: '#64748b', font: { size: 11 } },
+            title: { display: true, text: 'Volume (cc)', color: '#475569', font: { size: 11 } },
         },
     },
 };
 
 const THERAPY_LEVELS = [
-    { label: 'No Treatment', value: 0, color: '#ff5252' },
-    { label: 'Mild Chemo', value: 1, color: '#ffab40' },
-    { label: 'Standard Chemo+RT', value: 2, color: '#00c8ff' },
-    { label: 'Aggressive', value: 3, color: '#00e676' },
+    { label: 'No Treatment', value: 0, color: '#ef4444' },
+    { label: 'Mild Chemo', value: 1, color: '#f59e0b' },
+    { label: 'Standard Chemo+RT', value: 2, color: '#0284c7' },
+    { label: 'Aggressive', value: 3, color: '#10b981' },
 ];
 
 export default function TwinSimulator({ times, volumes }) {
@@ -85,8 +85,8 @@ export default function TwinSimulator({ times, volumes }) {
             datasets: [{
                 label: `Trajectory (T=${therapy})`,
                 data: traj,
-                borderColor: THERAPY_LEVELS.find(t => t.value === therapy)?.color || '#00c8ff',
-                backgroundColor: 'rgba(0,200,255,0.06)',
+                borderColor: THERAPY_LEVELS.find(t => t.value === therapy)?.color || '#0284c7',
+                backgroundColor: '#f0f9ff',
                 borderWidth: 2.5,
                 fill: true,
                 tension: 0.4,
@@ -107,7 +107,7 @@ export default function TwinSimulator({ times, volumes }) {
                 if (i === 0) return comparison.initial_volume;
                 return data.final_volume; // simplified
             }),
-            borderColor: THERAPY_LEVELS[idx]?.color || '#00c8ff',
+            borderColor: THERAPY_LEVELS[idx]?.color || '#0284c7',
             borderWidth: 2,
             fill: false,
             tension: 0.4,
@@ -198,7 +198,7 @@ export default function TwinSimulator({ times, volumes }) {
                     </button>
 
                     {error && (
-                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,82,82,0.1)', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: '#fee2e2', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
                             ⚠️ {error}
                         </div>
                     )}

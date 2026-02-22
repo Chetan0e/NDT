@@ -10,10 +10,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 const API = (process.env.REACT_APP_API_URL || 'http://localhost:8000');
 
 const RISK_COLORS = {
-    'Low': { bg: 'rgba(0,230,118,0.15)', border: '#00e676', text: '#00e676' },
-    'Intermediate': { bg: 'rgba(0,200,255,0.15)', border: '#00c8ff', text: '#00c8ff' },
-    'High': { bg: 'rgba(255,171,64,0.15)', border: '#ffab40', text: '#ffab40' },
-    'Very High': { bg: 'rgba(255,82,82,0.15)', border: '#ff5252', text: '#ff5252' },
+    'Low': { bg: '#d1fae5', border: '#10b981', text: '#10b981' },
+    'Intermediate': { bg: '#e0f2fe', border: '#0284c7', text: '#0284c7' },
+    'High': { bg: '#fef3c7', border: '#f59e0b', text: '#f59e0b' },
+    'Very High': { bg: '#fee2e2', border: '#ef4444', text: '#ef4444' },
 };
 
 const CHART_OPTS = {
@@ -21,13 +21,13 @@ const CHART_OPTS = {
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-        legend: { labels: { color: '#7aa3cc', font: { size: 12 } } },
+        legend: { labels: { color: '#475569', font: { size: 12 } } },
         tooltip: {
-            backgroundColor: '#0e1a2e',
-            borderColor: 'rgba(0,200,255,0.3)',
+            backgroundColor: '#ffffff',
+            borderColor: '#e2e8f0',
             borderWidth: 1,
-            titleColor: '#e8f4ff',
-            bodyColor: '#7aa3cc',
+            titleColor: '#0f172a',
+            bodyColor: '#475569',
             callbacks: {
                 label: ctx => ` ${(ctx.parsed.y * 100).toFixed(1)}% survival`,
             },
@@ -35,27 +35,27 @@ const CHART_OPTS = {
     },
     scales: {
         x: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
-            ticks: { color: '#4a6b8a', font: { size: 11 } },
-            title: { display: true, text: 'Months', color: '#7aa3cc', font: { size: 11 } },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            ticks: { color: '#64748b', font: { size: 11 } },
+            title: { display: true, text: 'Months', color: '#475569', font: { size: 11 } },
         },
         y: {
             min: 0, max: 1,
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(0,0,0,0.05)' },
             ticks: {
-                color: '#4a6b8a', font: { size: 11 },
+                color: '#64748b', font: { size: 11 },
                 callback: v => `${(v * 100).toFixed(0)}%`,
             },
-            title: { display: true, text: 'Survival Probability', color: '#7aa3cc', font: { size: 11 } },
+            title: { display: true, text: 'Survival Probability', color: '#475569', font: { size: 11 } },
         },
     },
 };
 
 const REF_COHORTS = {
-    'GBM_IDHwt_MGMT_unmethylated': { label: 'GBM IDHwt / MGMT−', color: '#ff5252' },
-    'GBM_IDHwt_MGMT_methylated': { label: 'GBM IDHwt / MGMT+', color: '#ffab40' },
-    'GBM_IDHmut': { label: 'GBM IDHmut', color: '#00c8ff' },
-    'Grade3_IDHmut': { label: 'Grade III IDHmut', color: '#00e676' },
+    'GBM_IDHwt_MGMT_unmethylated': { label: 'GBM IDHwt / MGMT−', color: '#ef4444' },
+    'GBM_IDHwt_MGMT_methylated': { label: 'GBM IDHwt / MGMT+', color: '#f59e0b' },
+    'GBM_IDHmut': { label: 'GBM IDHmut', color: '#0284c7' },
+    'Grade3_IDHmut': { label: 'Grade III IDHmut', color: '#10b981' },
 };
 
 export default function Survival({ patient }) {
@@ -113,8 +113,8 @@ export default function Survival({ patient }) {
         datasets: [{
             label: 'Patient Survival Curve',
             data: Object.values(result.kaplan_meier_curve),
-            borderColor: RISK_COLORS[result.risk_level]?.border || '#00c8ff',
-            backgroundColor: RISK_COLORS[result.risk_level]?.bg || 'rgba(0,200,255,0.08)',
+            borderColor: RISK_COLORS[result.risk_level]?.border || '#0284c7',
+            backgroundColor: RISK_COLORS[result.risk_level]?.bg || '#e0f2fe',
             fill: true,
             tension: 0.4,
             borderWidth: 3,
@@ -128,7 +128,7 @@ export default function Survival({ patient }) {
         datasets: Object.entries(refCurves.cohorts).map(([key, coh]) => ({
             label: REF_COHORTS[key]?.label || key,
             data: Object.values(coh.curve),
-            borderColor: REF_COHORTS[key]?.color || '#7aa3cc',
+            borderColor: REF_COHORTS[key]?.color || '#475569',
             backgroundColor: 'transparent',
             fill: false,
             tension: 0.4,
@@ -162,7 +162,7 @@ export default function Survival({ patient }) {
             </div>
 
             {error && (
-                <div style={{ padding: '10px 14px', background: 'rgba(255,82,82,0.1)', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--red)' }}>
+                <div style={{ padding: '10px 14px', background: '#fee2e2', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--red)' }}>
                     ⚠️ {error}
                 </div>
             )}

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { optimizeTherapy } from '../api';
 
 const THERAPY_LEVELS = [
-    { label: 'No Treatment', icon: '🚫', desc: 'Watch & wait. Suitable for indolent tumors.', color: '#4a6b8a' },
-    { label: 'Mild Chemotherapy', icon: '💊', desc: 'Low-dose temozolomide. Minimal toxicity.', color: '#ffab40' },
-    { label: 'Standard Chemo + RT', icon: '☢️', desc: 'Stupp protocol. Clinical standard of care.', color: '#00c8ff' },
-    { label: 'Aggressive Multi-modal', icon: '🔬', desc: 'Combined immunotherapy + chemoradiation.', color: '#00e676' },
+    { label: 'No Treatment', icon: '🚫', desc: 'Watch & wait. Suitable for indolent tumors.', color: '#64748b' },
+    { label: 'Mild Chemotherapy', icon: '💊', desc: 'Low-dose temozolomide. Minimal toxicity.', color: '#f59e0b' },
+    { label: 'Standard Chemo + RT', icon: '☢️', desc: 'Stupp protocol. Clinical standard of care.', color: '#0284c7' },
+    { label: 'Aggressive Multi-modal', icon: '🔬', desc: 'Combined immunotherapy + chemoradiation.', color: '#10b981' },
 ];
 
 function ScoreBar({ value, max = 100, color }) {
@@ -96,7 +96,7 @@ export default function RLOptimizer({ times, volumes }) {
                                         border: `1px solid ${useRL === opt.id ? 'var(--cyan)' : 'var(--border)'}`,
                                         borderRadius: 10,
                                         cursor: 'pointer',
-                                        background: useRL === opt.id ? 'rgba(0,200,255,0.08)' : 'transparent',
+                                        background: useRL === opt.id ? '#e0f2fe' : 'transparent',
                                         transition: 'all 0.2s',
                                     }}
                                 >
@@ -151,7 +151,7 @@ export default function RLOptimizer({ times, volumes }) {
                     </button>
 
                     {error && (
-                        <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,82,82,0.1)', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: '#fee2e2', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
                             ⚠️ {error}
                         </div>
                     )}
