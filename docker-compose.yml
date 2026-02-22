@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  # ── FastAPI Backend ──────────────────────────────────────────────────────
+  backend:
+    build: .
+    container_name: ndt-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./backend/models/weights:/app/backend/models/weights
+      - ./data:/app/data
+    environment:
+      - DEVICE=cuda
+      - DATABASE_URL=sqlite:////app/uploads/ndt.db
+      - SECRET_KEY=${SECRET_KEY:-ndt-dev-secret-change-me}
+      - BRATS_ROOT=/app/data/BraTS2021
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    restart: unless-stopped
+    networks:
+      - ndt-net
+
+  # ── React Frontend ────────────────────────────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    container_name: ndt-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    command: sh -c "npm install && npm start"
+    depends_on:
+      - backend
+    networks:
+      - ndt-net
+  # ── PostgreSQL (optional; default uses SQLite) ───────────────────────────
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: ndt-db
+  #   environment:
+  #     POSTGRES_DB: ndt
+  #     POSTGRES_USER: ndt
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-ndtpass}
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - ndt-net
+
+networks:
+  ndt-net:
+    driver: bridge
+
+# volumes:
+#   pgdata:
