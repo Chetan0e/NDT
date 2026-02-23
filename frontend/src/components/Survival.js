@@ -10,10 +10,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 const API = (process.env.REACT_APP_API_URL || 'http://localhost:8000');
 
 const RISK_COLORS = {
-    'Low': { bg: '#d1fae5', border: '#10b981', text: '#10b981' },
-    'Intermediate': { bg: '#e0f2fe', border: '#0284c7', text: '#0284c7' },
-    'High': { bg: '#fef3c7', border: '#f59e0b', text: '#f59e0b' },
-    'Very High': { bg: '#fee2e2', border: '#ef4444', text: '#ef4444' },
+    'Low': { bg: 'rgba(0,230,118,0.1)', border: '#00e676', text: '#00e676' },
+    'Intermediate': { bg: 'rgba(0,180,216,0.1)', border: '#00b4d8', text: '#00b4d8' },
+    'High': { bg: 'rgba(251,191,36,0.1)', border: '#fbbf24', text: '#fbbf24' },
+    'Very High': { bg: 'rgba(239,68,68,0.1)', border: '#ef4444', text: '#ef4444' },
 };
 
 const CHART_OPTS = {
@@ -21,13 +21,13 @@ const CHART_OPTS = {
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-        legend: { labels: { color: '#475569', font: { size: 12 } } },
+        legend: { labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 12 } },
         tooltip: {
-            backgroundColor: '#ffffff',
-            borderColor: '#e2e8f0',
+            backgroundColor: 'rgba(10,22,40,0.95)',
+            borderColor: 'rgba(56,130,220,0.3)',
             borderWidth: 1,
-            titleColor: '#0f172a',
-            bodyColor: '#475569',
+            titleColor: '#e1f0ff',
+            bodyColor: '#94a3b8',
             callbacks: {
                 label: ctx => ` ${(ctx.parsed.y * 100).toFixed(1)}% survival`,
             },
@@ -35,18 +35,18 @@ const CHART_OPTS = {
     },
     scales: {
         x: {
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: { color: '#64748b', font: { size: 11 } },
-            title: { display: true, text: 'Months', color: '#475569', font: { size: 11 } },
+            grid: { color: 'rgba(255,255,255,0.03)' },
+            ticks: { color: '#4a6080', font: { size: 10 } },
+            title: { display: true, text: 'Months', color: '#4a6080', font: { size: 10 } },
         },
         y: {
             min: 0, max: 1,
-            grid: { color: 'rgba(0,0,0,0.05)' },
+            grid: { color: 'rgba(255,255,255,0.04)' },
             ticks: {
-                color: '#64748b', font: { size: 11 },
+                color: '#4a6080', font: { size: 10 },
                 callback: v => `${(v * 100).toFixed(0)}%`,
             },
-            title: { display: true, text: 'Survival Probability', color: '#475569', font: { size: 11 } },
+            title: { display: true, text: 'Survival Probability', color: '#4a6080', font: { size: 10 } },
         },
     },
 };

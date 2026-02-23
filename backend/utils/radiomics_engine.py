@@ -22,8 +22,11 @@ class RadiomicsEngine:
 
     def __init__(self):
         self._available = self._check_pyradiomics()
-        if self._available:
-            self._extractor = self._init_extractor()
+        self._extractor = self._init_extractor() if self._available else None
+        # If extractor init returned None despite pyradiomics being importable,
+        # disable real extraction so mock is used instead.
+        if self._extractor is None:
+            self._available = False
 
     @staticmethod
     def _check_pyradiomics() -> bool:
@@ -39,17 +42,36 @@ class RadiomicsEngine:
 
     @staticmethod
     def _init_extractor():
-        from radiomics import featureextractor
-        extractor = featureextractor.RadiomicsFeatureExtractor()
-        extractor.enableAllFeatures()
-        # Disable texture features by default for speed (re-enable for research)
-        extractor.disableAllFeatures()
-        extractor.enableFeaturesByName({
-            "shape": [],
-            "firstorder": [],
-            "glcm": ["Contrast", "Correlation", "Dissimilarity", "Entropy", "Homogeneity"],
-        })
-        return extractor
+        """
+        Initialise PyRadiomics extractor with shape + first-order + select GLCM features.
+        Compatible with PyRadiomics 3.x (enableFeatureClassByName) and older dict-style API.
+        Falls back to None on any error so the engine gracefully uses mock features.
+        """
+        try:
+            from radiomics import featureextractor
+            extractor = featureextractor.RadiomicsFeatureExtractor()
+
+            # Start from a clean slate
+            extractor.disableAllFeatures()
+
+            # PyRadiomics 3.x API: enable each class separately
+            # enableFeatureClassByName(className, featureNames=None)
+            # Passing None (or no second arg) enables all features in that class.
+            try:
+                extractor.enableFeatureClassByName("shape")
+                extractor.enableFeatureClassByName("firstorder")
+                extractor.enableFeatureClassByName("glcm")
+            except AttributeError:
+                # Older PyRadiomics used a different API — fall back to enableAllFeatures
+                extractor.enableAllFeatures()
+
+            return extractor
+
+        except Exception as exc:
+            logger.warning(
+                "PyRadiomics extractor init failed (%s) — will use mock features.", exc
+            )
+            return None
 
     def extract(self, volume: np.ndarray, mask: np.ndarray) -> dict:
         """
@@ -62,7 +84,7 @@ class RadiomicsEngine:
         Returns:
             dict of feature_name → float value
         """
-        if not self._available:
+        if not self._available or self._extractor is None:
             return self._mock_features(volume, mask)
 
         return self._pyradiomics_extract(volume, mask)

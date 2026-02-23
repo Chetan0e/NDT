@@ -14,26 +14,27 @@ ChartJS.register(
 const CHART_OPTS = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
     plugins: {
-        legend: { labels: { color: '#475569', font: { size: 12 } } },
+        legend: { labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 12 } },
         tooltip: {
-            backgroundColor: '#ffffff',
-            borderColor: '#e2e8f0',
+            backgroundColor: 'rgba(10,22,40,0.95)',
+            borderColor: 'rgba(56,130,220,0.3)',
             borderWidth: 1,
-            titleColor: '#0f172a',
-            bodyColor: '#475569',
+            titleColor: '#e1f0ff',
+            bodyColor: '#94a3b8',
         },
     },
     scales: {
         x: {
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 10 },
-            title: { display: true, text: 'Day', color: '#475569', font: { size: 11 } },
+            grid: { color: 'rgba(255,255,255,0.03)' },
+            ticks: { color: '#4a6080', font: { size: 10 }, maxTicksLimit: 10 },
+            title: { display: true, text: 'Day', color: '#4a6080', font: { size: 10 } },
         },
         y: {
-            grid: { color: 'rgba(0,0,0,0.05)' },
-            ticks: { color: '#64748b', font: { size: 11 } },
-            title: { display: true, text: 'Volume (cc)', color: '#475569', font: { size: 11 } },
+            grid: { color: 'rgba(255,255,255,0.04)' },
+            ticks: { color: '#4a6080', font: { size: 10 } },
+            title: { display: true, text: 'Volume (cc)', color: '#4a6080', font: { size: 10 } },
         },
     },
 };
