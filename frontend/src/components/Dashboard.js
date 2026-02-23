@@ -10,6 +10,7 @@ import {
     Settings, Network, Activity, Brain, MoreHorizontal, Maximize2, RotateCcw, ChevronDown, Check, ArrowDownRight, ArrowDown
 } from 'lucide-react';
 import { predictGrowth, simulateTwin, optimizeTherapy } from '../api';
+import Viewer3D from './Viewer3D';
 
 ChartJS.register(
     CategoryScale, LinearScale, PointElement, LineElement,
@@ -58,7 +59,7 @@ const darkChartOpts = (yLabel = 'Volume (cc)', xLabel = 'Days') => ({
             },
         },
         tooltip: {
-            backgroundColor: 'rgba(10,22,40,0.95)',
+            backgroundColor: 'rgba(255,255,255,0.95)',
             borderColor: 'rgba(56,130,220,0.3)',
             borderWidth: 1,
             titleColor: '#e1f0ff',
@@ -69,12 +70,12 @@ const darkChartOpts = (yLabel = 'Volume (cc)', xLabel = 'Days') => ({
     },
     scales: {
         x: {
-            grid: { color: 'rgba(255,255,255,0.03)' },
+            grid: { color: 'rgba(15,23,42,0.04)' },
             ticks: { color: '#4a6080', font: { size: 10 } },
             title: { display: true, text: xLabel, color: '#4a6080', font: { size: 10 } },
         },
         y: {
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(15,23,42,0.05)' },
             ticks: { color: '#4a6080', font: { size: 10 } },
             title: { display: true, text: yLabel, color: '#4a6080', font: { size: 10 } },
         },
@@ -131,7 +132,7 @@ function SurvivalMiniChart({ medianOS = 15.8, ci = { l: 15.2, h: 19.41 } }) {
         plugins: {
             legend: { display: false },
             tooltip: {
-                backgroundColor: 'rgba(10,22,40,0.95)',
+                backgroundColor: 'rgba(255,255,255,0.95)',
                 borderColor: 'rgba(251,191,36,0.3)',
                 borderWidth: 1,
                 titleColor: '#e1f0ff',
@@ -141,13 +142,13 @@ function SurvivalMiniChart({ medianOS = 15.8, ci = { l: 15.2, h: 19.41 } }) {
         },
         scales: {
             x: {
-                grid: { color: 'rgba(255,255,255,0.03)' },
+                grid: { color: 'rgba(15,23,42,0.04)' },
                 ticks: { color: '#4a6080', font: { size: 9 }, maxTicksLimit: 5 },
                 title: { display: true, text: 'Months', color: '#4a6080', font: { size: 9 } },
             },
             y: {
                 min: 0, max: 1,
-                grid: { color: 'rgba(255,255,255,0.04)' },
+                grid: { color: 'rgba(15,23,42,0.05)' },
                 ticks: { color: '#4a6080', font: { size: 9 }, callback: v => `${(v * 100).toFixed(0)}%` },
                 title: { display: true, text: 'Survival Prob', color: '#4a6080', font: { size: 9 } },
             },
@@ -192,9 +193,9 @@ function BiomarkerRadar() {
         scales: {
             r: {
                 min: 0, max: 1,
-                backgroundColor: 'rgba(255,255,255,0.01)',
-                grid: { color: 'rgba(255,255,255,0.06)' },
-                angleLines: { color: 'rgba(255,255,255,0.06)' },
+                backgroundColor: 'rgba(15,23,42,0.02)',
+                grid: { color: 'rgba(15,23,42,0.08)' },
+                angleLines: { color: 'rgba(15,23,42,0.08)' },
                 pointLabels: { color: '#4a6080', font: { size: 8 } },
                 ticks: { display: false },
             },
@@ -207,93 +208,18 @@ function BiomarkerRadar() {
     );
 }
 
-// ── MRI Slice visualization (canvas) ─────────────────────────────────────
+// ── MRI Slice visualization (Replaced by Volumetric Viewer3D) ──────────────
 function MRIViewer({ activeSlice = 'Axial' }) {
-    const canvasRef = useRef(null);
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        const W = canvas.width, H = canvas.height;
-        ctx.clearRect(0, 0, W, H);
-
-        // Background
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, W, H);
-
-        // Brain outline (ellipse)
-        const cx = W / 2, cy = H / 2;
-        const grd = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.min(W, H) * 0.45);
-        grd.addColorStop(0, '#5a6a7a');
-        grd.addColorStop(0.6, '#3a4a5a');
-        grd.addColorStop(1, '#1a2a3a');
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, W * 0.42, H * 0.47, 0, 0, Math.PI * 2);
-        ctx.fillStyle = grd;
-        ctx.fill();
-
-        // Sulci / gyri (subtle lines)
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-        ctx.lineWidth = 1.5;
-        for (let i = 0; i < 6; i++) {
-            ctx.beginPath();
-            const angle = (i / 6) * Math.PI * 2;
-            const x1 = cx + Math.cos(angle) * 20, y1 = cy + Math.sin(angle) * 20;
-            const x2 = cx + Math.cos(angle) * W * 0.38, y2 = cy + Math.sin(angle) * H * 0.43;
-            ctx.moveTo(x1, y1);
-            ctx.quadraticCurveTo(cx + Math.sin(angle) * 30, cy - Math.cos(angle) * 30, x2, y2);
-            ctx.stroke();
-        }
-
-        // Ventricles
-        ctx.fillStyle = 'rgba(0,60,120,0.6)';
-        ctx.beginPath(); ctx.ellipse(cx - 14, cy, 10, 18, -0.3, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(cx + 14, cy, 10, 18, 0.3, 0, Math.PI * 2); ctx.fill();
-
-        // Tumor with glow
-        const tGrd = ctx.createRadialGradient(cx + 40, cy - 20, 2, cx + 40, cy - 20, 36);
-        tGrd.addColorStop(0, '#ff9f00');
-        tGrd.addColorStop(0.4, '#e53935');
-        tGrd.addColorStop(0.7, 'rgba(200,50,50,0.5)');
-        tGrd.addColorStop(1, 'rgba(150,0,50,0)');
-        ctx.beginPath();
-        ctx.ellipse(cx + 40, cy - 20, 36, 30, 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = tGrd;
-        ctx.fill();
-
-        // Tumor glow
-        ctx.shadowColor = '#ff6d00';
-        ctx.shadowBlur = 18;
-        ctx.beginPath();
-        ctx.ellipse(cx + 40, cy - 20, 20, 16, 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,140,0,0.5)';
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Scale bar
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(20, H - 20); ctx.lineTo(20 + 40, H - 20);
-        ctx.stroke();
-        ctx.fillStyle = '#fff';
-        ctx.font = '9px Inter';
-        ctx.fillText('10 cm', 22, H - 8);
-
-        // Slice info
-        ctx.fillStyle = 'rgba(0,180,216,0.8)';
-        ctx.font = 'bold 10px JetBrains Mono';
-        ctx.fillText(`${activeSlice}  Slice 82/155`, 10, 18);
-
-    }, [activeSlice]);
-
+    // Passes through to the shared 3D renderer in mini-mode
     return (
-        <canvas
-            ref={canvasRef}
-            width={200}
-            height={180}
-            style={{ width: '100%', height: '100%', display: 'block', borderRadius: 6 }}
-        />
+        <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 180, overflow: 'hidden', borderRadius: 6 }}>
+            <Viewer3D volumeData={null} mini={true} />
+            <div style={{ position: 'absolute', top: 12, left: 16, zIndex: 10, pointerEvents: 'none' }}>
+                <div style={{ color: 'var(--cyan)', fontSize: 11, fontWeight: 700, fontFamily: 'monospace' }}>
+                    {activeSlice} VIEW
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -651,7 +577,7 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
                                         borderRadius: 4,
                                         cursor: 'pointer',
                                         border: `1px solid ${mriMode === seq ? 'var(--cyan)' : 'var(--border)'}`,
-                                        background: mriMode === seq ? 'rgba(0,180,216,0.15)' : 'rgba(255,255,255,0.03)',
+                                        background: mriMode === seq ? 'rgba(0,180,216,0.15)' : 'rgba(15,23,42,0.04)',
                                         color: mriMode === seq ? 'var(--cyan)' : 'var(--text-muted)',
                                         transition: 'all 0.15s',
                                     }}
@@ -821,7 +747,7 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginTop: 8 }}>
-                            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 6px', textAlign: 'center', border: '1px solid var(--border)' }}>
+                            <div style={{ background: 'rgba(15,23,42,0.04)', borderRadius: 8, padding: '8px 6px', textAlign: 'center', border: '1px solid var(--border)' }}>
                                 <div className="twin-metric-label">Initial Vol</div>
                                 <div className="twin-metric-val">23.4</div>
                                 <div className="twin-metric-sub">cc</div>
@@ -940,7 +866,7 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
                                         fontSize: 10,
                                         fontWeight: 600,
                                         cursor: 'pointer',
-                                        background: i === 0 ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)',
+                                        background: i === 0 ? 'rgba(251,191,36,0.15)' : 'rgba(15,23,42,0.04)',
                                         color: i === 0 ? 'var(--amber)' : 'var(--text-muted)',
                                         border: `1px solid ${i === 0 ? 'rgba(251,191,36,0.3)' : 'var(--border)'}`,
                                     }}

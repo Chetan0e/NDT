@@ -1,0 +1,16 @@
+{
+  "name": "neuro-digital-twin",
+  "version": "1.0.0",
+  "description": "An AI-powered neuro-oncology research platform",
+  "scripts": {
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "cd backend && call ..\\.venv\\Scripts\\activate && uvicorn app:app --reload --port 8000",
+    "start:frontend": "cd frontend && npm start",
+    "install:all": "npm install && npm run install:backend && npm run install:frontend",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && call ..\\.venv\\Scripts\\activate && pip install -r ../requirements.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

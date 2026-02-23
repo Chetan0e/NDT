@@ -117,7 +117,7 @@ export default function Radiomics({ data }) {
                         { label: 'Uniformity', val: features['glcm_Homogeneity']?.toFixed(3), key: 'glcm_Homogeneity' },
                     ].map(item => (
                         <div key={item.label} style={{
-                            background: 'rgba(14,26,46,0.8)',
+                            background: 'rgba(255,255,255,0.85)',
                             border: `1px solid ${getBarColor(item.key, item.val)}44`,
                             borderRadius: 10, padding: '12px 16px', minWidth: 120,
                         }}>

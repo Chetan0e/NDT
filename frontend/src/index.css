@@ -1,73 +1,73 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   NeuroDigital Twin — Dark Clinical AI Dashboard Design System v3.0
-   Deep Space Dark Theme · Glassmorphism · Clinical Precision · Medical AI
+   NeuroDigital Twin — Professional Clinical Dashboard
+   Theme: Sophisticated Medical Dark Mode
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* ── Design Tokens ─────────────────────────────────────────────────────── */
 :root {
-  /* Dark Space Palette */
-  --bg-base: #050d1a;
-  --bg-surface: #0a1628;
-  --bg-card: #0d1e35;
-  --bg-card2: #0f2140;
-  --bg-hover: #132848;
-  --bg-input: #0c1c30;
+  /* Professional Clinical Palette (Light) - Premium Glassmorphism */
+  --bg-base: #f8fafc;          /* Slate 50 */
+  --bg-surface: #ffffff;       /* Pure white */
+  --bg-card: #ffffff;          /* White cards */
+  --bg-card2: #f1f5f9;         /* Slate 100 */
+  --bg-hover: #e2e8f0;         /* Slate 200 */
+  --bg-input: #f8fafc;         /* Light slate */
 
   /* Borders */
-  --border: rgba(30, 80, 160, 0.25);
-  --border-bright: rgba(56, 130, 220, 0.4);
-  --border-glow: rgba(0, 180, 255, 0.3);
+  --border: #e2e8f0;           /* Slate 200 */
+  --border-bright: #cbd5e1;    /* Slate 300 */
+  --border-glow: transparent;
 
   /* Accent Colors */
-  --cyan: #00b4d8;
-  --cyan2: #0077b6;
-  --blue: #3b82f6;
-  --violet: #7c3aed;
-  --green: #00e676;
-  --green2: #10b981;
-  --amber: #fbbf24;
-  --orange: #f97316;
-  --red: #ef4444;
-  --pink: #ec4899;
-  --teal: #14b8a6;
+  --cyan: #0284c7;             /* Clinical Blue */
+  --cyan2: #0369a1;            
+  --blue: #2563eb;             /* Trust Blue */
+  --violet: #7c3aed;           /* For ML/AI features */
+  --green: #059669;            /* Success */
+  --green2: #047857;
+  --amber: #d97706;            /* Warning */
+  --orange: #ea580c;
+  --red: #dc2626;              /* Danger / Tumor core */
+  --pink: #db2777;
+  --teal: #0d9488;
 
   /* Text Hierarchy */
-  --text-primary: #e1f0ff;
-  --text-secondary: #94a3b8;
-  --text-muted: #4a6080;
-  --text-bright: #ffffff;
+  --text-primary: #0f172a;     /* Slate 900 */
+  --text-secondary: #475569;   /* Slate 600 */
+  --text-muted: #64748b;       /* Slate 500 */
+  --text-bright: #020617;      /* Nearly black */
 
   /* Gradients */
-  --grad-brand: linear-gradient(135deg, #00b4d8, #0077b6);
-  --grad-green: linear-gradient(135deg, #00e676, #10b981);
-  --grad-danger: linear-gradient(135deg, #ef4444, #dc2626);
-  --grad-amber: linear-gradient(135deg, #fbbf24, #f97316);
-  --grad-violet: linear-gradient(135deg, #7c3aed, #4f46e5);
-  --grad-card: linear-gradient(145deg, rgba(13, 30, 53, 0.9), rgba(10, 22, 40, 0.95));
+  --grad-brand: linear-gradient(135deg, #0284c7, #2563eb);
+  --grad-green: linear-gradient(135deg, #059669, #10b981);
+  --grad-danger: linear-gradient(135deg, #dc2626, #ef4444);
+  --grad-amber: linear-gradient(135deg, #d97706, #f59e0b);
+  --grad-violet: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  --grad-card: linear-gradient(180deg, #ffffff, #f8fafc);
 
   /* Fonts */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 
   /* Layout */
-  --topbar-h: 62px;
-  --sidebar-w: 226px;
-  --sidebar-col: 60px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --topbar-h: 68px;
+  --sidebar-w: 250px;
+  --sidebar-col: 72px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 
-  /* Shadows / Glows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
-  --glow-cyan: 0 0 20px rgba(0, 180, 216, 0.25);
-  --glow-green: 0 0 20px rgba(0, 230, 118, 0.25);
-  --glow-red: 0 0 20px rgba(239, 68, 68, 0.25);
-  --glow-violet: 0 0 20px rgba(124, 58, 237, 0.25);
+  /* Shadows - Premium Soft Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -1px rgba(15, 23, 42, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+  --glow-cyan: 0 4px 12px rgba(2, 132, 199, 0.2);
+  --glow-green: 0 4px 12px rgba(5, 150, 105, 0.2);
+  --glow-red: 0 4px 12px rgba(220, 38, 38, 0.2);
+  --glow-violet: 0 4px 12px rgba(124, 58, 237, 0.2);
 }
 
 /* ── CSS Reset ─────────────────────────────────────────────────────────── */
@@ -116,15 +116,15 @@ textarea {
   height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 20% 10%, rgba(0, 100, 200, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 80%, rgba(0, 60, 120, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 20% 10%, rgba(2, 132, 199, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(37, 99, 235, 0.03) 0%, transparent 60%),
     var(--bg-base);
 }
 
 /* ── Top Bar ───────────────────────────────────────────────────────────── */
 .topbar {
   height: var(--topbar-h);
-  background: rgba(10, 22, 40, 0.95);
+  background: rgba(255, 255, 255, 0.85);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -153,7 +153,7 @@ textarea {
 }
 
 .sidebar-toggle {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
@@ -242,7 +242,7 @@ textarea {
   cursor: pointer;
   border: 1px solid var(--border);
   transition: all 0.2s;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
   color: var(--text-secondary);
   white-space: nowrap;
 }
@@ -250,13 +250,13 @@ textarea {
 .topbar-btn:hover {
   border-color: var(--border-bright);
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .topbar-btn.primary {
   background: var(--grad-brand);
   border-color: transparent;
-  color: #fff;
+  color: #ffffff;
   box-shadow: var(--glow-cyan);
 }
 
@@ -270,7 +270,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
   border: 1px solid var(--border);
   border-radius: 30px;
   padding: 4px 12px 4px 4px;
@@ -286,7 +286,7 @@ textarea {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  color: #fff;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -310,7 +310,7 @@ textarea {
 
 /* ── Sidebar ───────────────────────────────────────────────────────────── */
 .sidebar {
-  background: rgba(8, 16, 30, 0.96);
+  background: rgba(255, 255, 255, 0.90);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -476,7 +476,7 @@ textarea {
   padding: 20px 24px;
   scroll-behavior: smooth;
   background:
-    radial-gradient(ellipse at 70% 20%, rgba(0, 80, 160, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 20%, rgba(15, 23, 42, 0.02) 0%, transparent 50%),
     transparent;
 }
 
@@ -568,7 +568,7 @@ textarea {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.02) 0%, transparent 60%);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.02) 0%, transparent 60%);
   pointer-events: none;
   border-radius: inherit;
 }
@@ -620,7 +620,7 @@ textarea {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.025) 0%, transparent 60%);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.02) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -830,7 +830,7 @@ textarea {
 
 .btn-primary {
   background: var(--grad-brand);
-  color: #fff;
+  color: #ffffff;
   box-shadow: var(--glow-cyan);
 }
 
@@ -841,7 +841,7 @@ textarea {
 
 .btn-success {
   background: linear-gradient(135deg, #00c853, #10b981);
-  color: #fff;
+  color: #ffffff;
   box-shadow: var(--glow-green);
 }
 
@@ -851,7 +851,7 @@ textarea {
 }
 
 .btn-outline {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
   color: var(--text-secondary);
   border: 1px solid var(--border);
 }
@@ -859,7 +859,7 @@ textarea {
 .btn-outline:hover:not(:disabled) {
   border-color: var(--border-bright);
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(15, 23, 42, 0.08);
 }
 
 .btn-ghost {
@@ -955,12 +955,12 @@ textarea {
 
 .tab-btn.active {
   background: var(--grad-brand);
-  color: #fff;
+  color: #ffffff;
   box-shadow: var(--glow-cyan);
 }
 
 .tab-btn:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
   color: var(--text-secondary);
 }
 
@@ -1294,12 +1294,12 @@ textarea {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.2s;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(15, 23, 42, 0.02);
 }
 
 .therapy-card:hover {
   border-color: var(--border-bright);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
 }
 
 .therapy-card.selected {
@@ -1376,7 +1376,7 @@ textarea {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(15, 23, 42, 0.04);
   border: 1px solid var(--border);
   display: flex;
   align-items: center;

@@ -322,12 +322,11 @@ pip install -r requirements.txt
 # 4. (Optional) Download pretrained segmentation weights
 python backend/models/download_weights.py
 
-# 5. Start backend API  (from repo root)
-cd backend
-uvicorn app:app --reload --port 8000
+# 5. Start EVERYTHING with one command!
+# Option A: Windows users can simply double-click `start.bat` or run:
+start.bat
 
-# 6. Start frontend (new terminal, from repo root)
-cd frontend
+# Option B: Single terminal using npm (installs root dependencies and runs concurrently)
 npm install
 npm start
 ```

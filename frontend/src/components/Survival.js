@@ -23,7 +23,7 @@ const CHART_OPTS = {
     plugins: {
         legend: { labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 12 } },
         tooltip: {
-            backgroundColor: 'rgba(10,22,40,0.95)',
+            backgroundColor: 'rgba(255,255,255,0.95)',
             borderColor: 'rgba(56,130,220,0.3)',
             borderWidth: 1,
             titleColor: '#e1f0ff',
@@ -35,13 +35,13 @@ const CHART_OPTS = {
     },
     scales: {
         x: {
-            grid: { color: 'rgba(255,255,255,0.03)' },
+            grid: { color: 'rgba(15,23,42,0.04)' },
             ticks: { color: '#4a6080', font: { size: 10 } },
             title: { display: true, text: 'Months', color: '#4a6080', font: { size: 10 } },
         },
         y: {
             min: 0, max: 1,
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(15,23,42,0.05)' },
             ticks: {
                 color: '#4a6080', font: { size: 10 },
                 callback: v => `${(v * 100).toFixed(0)}%`,
