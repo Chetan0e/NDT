@@ -34,20 +34,20 @@ logger = logging.getLogger("ndt.app")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize DB tables and pre-warm any models on startup."""
-    logger.info("🧠 NeuroDigital Twin starting up…")
+    logger.info("NeuroDigital Twin starting up...")
     init_db()
-    logger.info("✅ Database tables ready.")
+    logger.info("Database tables ready.")
 
     # Pre-warm segmentor (loads weights once, not per request)
     try:
         from models.segmentor import segmentor  # noqa – triggers singleton init
-        logger.info("✅ Segmentor model loaded.")
+        logger.info("Segmentor model loaded.")
     except Exception as e:
-        logger.warning("⚠️  Segmentor pre-warm failed: %s", e)
+        logger.warning("Segmentor pre-warm failed: %s", e)
 
     yield
 
-    logger.info("🛑 NeuroDigital Twin shutting down.")
+    logger.info("NeuroDigital Twin shutting down.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
