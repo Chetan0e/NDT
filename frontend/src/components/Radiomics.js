@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { interpretFeatures } from '../api';
 
-// Fallback demo data for when no scan has been uploaded
+// Fallback demo data for when no scan has been uploaded yet
+// This allows the component to be functional even without real MRI data
 const DEMO_FEATURES = {
     "shape_Elongation": 0.72,
     "shape_Sphericity": 0.54,

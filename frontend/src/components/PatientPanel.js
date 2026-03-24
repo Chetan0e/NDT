@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { savePatient, getPatient } from '../api';
 
-export default function PatientPanel({ patient: initialPatient }) {
-    const [patient, setPatient] = useState(initialPatient || {
+export default function PatientPanel({ patient: initialPatient, setPatient }) {
+    const [patient, setLocalPatient] = useState(initialPatient || {
         patient_id: '', name: '', age: '', gender: 'Male',
         diagnosis: 'Glioblastoma (Grade IV)',
         kps_score: 80, tumor_grade: 4,
@@ -13,15 +13,30 @@ export default function PatientPanel({ patient: initialPatient }) {
     const [msg, setMsg] = useState(null);
     const [lookupId, setLookupId] = useState('');
 
-    const handleChange = (key, val) =>
-        setPatient(p => ({ ...p, [key]: val }));
+    // Sync local patient state with props
+    useEffect(() => {
+        setLocalPatient(initialPatient);
+    }, [initialPatient]);
+
+    const handleChange = (key, val) => {
+        const currentPatient = patient || {};
+        const updatedPatient = { ...currentPatient, [key]: val };
+        setLocalPatient(updatedPatient);
+        if (setPatient) setPatient(updatedPatient);
+    };
 
     const handleSave = async () => {
+        if (!patient) {
+            setMsg({ type: 'error', text: '⚠️ No patient data to save' });
+            return;
+        }
+        
         setLoading(true);
         setMsg(null);
         try {
             await savePatient(patient);
-            setMsg({ type: 'success', text: `✅ Patient ${patient.patient_id} saved.` });
+            setMsg({ type: 'success', text: `✅ Patient ${patient.patient_id || 'Unknown'} saved.` });
+            if (setPatient) setPatient(patient);
         } catch (e) {
             setMsg({ type: 'error', text: `⚠️ ${e.message}` });
         } finally {
@@ -36,8 +51,10 @@ export default function PatientPanel({ patient: initialPatient }) {
         try {
             const data = await getPatient(lookupId);
             setLoaded(data);
-            setPatient(data.patient);
-            setMsg({ type: 'success', text: `✅ Loaded ${data.patient.name || lookupId}` });
+            const loadedPatient = data.patient;
+            setLocalPatient(loadedPatient);
+            if (setPatient) setPatient(loadedPatient);
+            setMsg({ type: 'success', text: `✅ Loaded ${loadedPatient.name || lookupId}` });
         } catch (e) {
             setMsg({ type: 'error', text: `⚠️ ${e.message}` });
         } finally {
@@ -112,14 +129,14 @@ export default function PatientPanel({ patient: initialPatient }) {
                 {/* Demographics */}
                 <div className="card">
                     <div className="card-title">Demographics</div>
-                    <Field label="Patient ID" id="pid" value={patient.patient_id} onChange={v => handleChange('patient_id', v)} />
-                    <Field label="Full Name" id="pname" value={patient.name} onChange={v => handleChange('name', v)} />
-                    <Field label="Age" id="page" type="number" value={patient.age} onChange={v => handleChange('age', v)} />
+                    <Field label="Patient ID" id="pid" value={patient?.patient_id || ''} onChange={v => handleChange('patient_id', v)} />
+                    <Field label="Full Name" id="pname" value={patient?.name || ''} onChange={v => handleChange('name', v)} />
+                    <Field label="Age" id="page" type="number" value={patient?.age || ''} onChange={v => handleChange('age', v)} />
                     <div style={{ marginBottom: 14 }}>
                         <label className="input-label">Gender</label>
                         <select
                             className="input"
-                            value={patient.gender}
+                            value={patient?.gender || 'Male'}
                             onChange={e => handleChange('gender', e.target.value)}
                         >
                             <option>Male</option>
@@ -134,17 +151,17 @@ export default function PatientPanel({ patient: initialPatient }) {
                     <div className="card-title">Clinical Data</div>
                     <div style={{ marginBottom: 14 }}>
                         <label className="input-label">Diagnosis</label>
-                        <input className="input" value={patient.diagnosis} onChange={e => handleChange('diagnosis', e.target.value)} />
+                        <input className="input" value={patient?.diagnosis || ''} onChange={e => handleChange('diagnosis', e.target.value)} />
                     </div>
-                    <Field label="KPS Score (0–100)" id="kps" type="number" value={patient.kps_score} onChange={v => handleChange('kps_score', v)} min={0} max={100} />
+                    <Field label="KPS Score (0–100)" id="kps" type="number" value={patient?.kps_score || 80} onChange={v => handleChange('kps_score', v)} min={0} max={100} />
                     <div style={{ marginBottom: 14 }}>
                         <label className="input-label">Tumor Grade (WHO)</label>
-                        <select className="input" value={patient.tumor_grade} onChange={e => handleChange('tumor_grade', Number(e.target.value))}>
+                        <select className="input" value={patient?.tumor_grade || 4} onChange={e => handleChange('tumor_grade', Number(e.target.value))}>
                             {[1, 2, 3, 4].map(g => <option key={g} value={g}>Grade {g}</option>)}
                         </select>
                     </div>
-                    <Toggle label="IDH Mutation (favorable)" value={patient.idh_mutation} onChange={v => handleChange('idh_mutation', v)} />
-                    <Toggle label="MGMT Methylation (favorable)" value={patient.mgmt_methylation} onChange={v => handleChange('mgmt_methylation', v)} />
+                    <Toggle label="IDH Mutation (favorable)" value={patient?.idh_mutation || false} onChange={v => handleChange('idh_mutation', v)} />
+                    <Toggle label="MGMT Methylation (favorable)" value={patient?.mgmt_methylation || false} onChange={v => handleChange('mgmt_methylation', v)} />
                 </div>
             </div>
 
@@ -152,7 +169,11 @@ export default function PatientPanel({ patient: initialPatient }) {
                 <button className="btn btn-primary" onClick={handleSave} disabled={loading}>
                     {loading ? '⏳ Saving…' : '💾 Save Patient'}
                 </button>
-                <button className="btn btn-ghost" onClick={() => setPatient({ patient_id: '', name: '', age: '' })}>
+                <button className="btn btn-ghost" onClick={() => {
+                    const clearedPatient = { patient_id: '', name: '', age: '' };
+                    setLocalPatient(clearedPatient);
+                    if (setPatient) setPatient(clearedPatient);
+                }}>
                     🗑 Clear
                 </button>
             </div>

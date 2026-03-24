@@ -17,32 +17,8 @@ ChartJS.register(
     Title, Tooltip, Legend, Filler, RadialLinearScale
 );
 
-// ── Demo data ─────────────────────────────────────────────────────────────
-const DEMO_PATIENT = {
-    patient_id: 'NDTP-0457',
-    name: 'Patient #NDTP-0457',
-    age: 52,
-    gender: 'Male',
-    diagnosis: 'Glioblastoma (GBM)',
-    diagnosis_date: '2024-03-14',
-    kps_score: 80,
-    tumor_grade: 4,
-    idh_mutation: false,
-    mgmt_methylation: true,
-    egfr_amplification: true,
-    tp53_mutation: false,
-};
-
-const DEMO_TIMES = [0, 30, 60, 90, 120, 150];
-const DEMO_VOLUMES = [18.2, 19.8, 21.4, 22.7, 23.0, 23.4];
-
-const RADIOMICS_DATA = {
-    entropy: { val: 5.8, label: 'Entropy', severity: 'High', max: 9 },
-    contrast: { val: 0.72, label: 'Contrast', severity: 'Elevated', max: 1 },
-    necrosis: { val: 32, label: 'Necrosis', severity: 'High', max: 100, unit: '%' },
-    cellularity: { val: 89, label: 'Cellularity', severity: 'High', max: 100, unit: '%' },
-    invasiveness: { val: 0.81, label: 'Invasiveness', severity: 'High', max: 1 },
-};
+// ── Real data integration ─────────────────────────────────────────────────────────────
+// All data will be fetched from backend API based on actual patient records
 
 // ── Chart defaults ────────────────────────────────────────────────────────
 const darkChartOpts = (yLabel = 'Volume (cc)', xLabel = 'Days') => ({
@@ -224,22 +200,22 @@ function MRIViewer({ activeSlice = 'Axial' }) {
 }
 
 // ── Growth Prediction Chart ───────────────────────────────────────────────
-function GrowthChart({ prediction }) {
-    const historical = DEMO_TIMES;
-    const histV = DEMO_VOLUMES;
+function GrowthChart({ prediction, times, volumes }) {
+    const historical = times || [];
+    const histV = volumes || [];
     const futureLabels = prediction
         ? [30, 60, 90].map(d => `+${d}d`)
         : ['Day +30', 'Day +60', 'Day +90'];
 
     const allLabels = historical.map(d => `Day ${d}`).concat(futureLabels);
     const actualData = histV.concat([null, null, null]);
-    const predictedData = histV.slice(0, -1).concat([histV[histV.length - 1]]).concat([
+    const predictedData = histV.slice(0, -1).concat([histV[histV.length - 1] || 0]).concat([
         prediction?.predictions?.day_30 || null,
         prediction?.predictions?.day_60 || null,
         prediction?.predictions?.day_90 || null,
     ]);
     // Untreated line
-    const untreated = historical.map((_, i) => histV[i]).concat([
+    const untreated = historical.map((_, i) => histV[i] || 0).concat([
         (prediction?.predictions?.day_30 || 25) * 1.18,
         (prediction?.predictions?.day_60 || 28) * 1.28,
         (prediction?.predictions?.day_90 || 31) * 1.35,
@@ -344,7 +320,7 @@ function TwinSimChart({ simResult }) {
 // ═══════════════════════════════════════════════════════════════════
 // Main Dashboard
 // ═══════════════════════════════════════════════════════════════════
-export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
+export default function Dashboard({ patient, uploadResult, setPatient }) {
     const [prediction, setPrediction] = useState(null);
     const [simResult, setSimResult] = useState(null);
     const [rlResult, setRlResult] = useState(null);
@@ -356,38 +332,41 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
     const [approved, setApproved] = useState(false);
     const [reanalyzing, setReanalyzing] = useState(false);
     const [exporting, setExporting] = useState(false);
+    const [realTimeData, setRealTimeData] = useState({ times: [], volumes: [] });
 
-    // Auto-load prediction on mount
+    // Load real patient data when available
     useEffect(() => {
-        (async () => {
+        if (uploadResult && uploadResult.times && uploadResult.volumes) {
+            setRealTimeData({
+                times: uploadResult.times,
+                volumes: uploadResult.volumes
+            });
+            
+            // Auto-load prediction with real data
             setLoadingPred(true);
-            try {
-                const data = await predictGrowth(DEMO_TIMES, DEMO_VOLUMES);
-                setPrediction(data);
-            } catch { /* backend offline – show placeholder */ }
-            finally { setLoadingPred(false); }
-        })();
-    }, []);
-
-    // Auto-run RL recommendation
-    useEffect(() => {
-        (async () => {
+            predictGrowth(uploadResult.times, uploadResult.volumes)
+                .then(data => setPrediction(data))
+                .catch(() => { /* backend offline – show placeholder */ })
+                .finally(() => setLoadingPred(false));
+                
+            // Auto-run RL recommendation with real data
             setLoadingRL(true);
-            try {
-                const data = await optimizeTherapy(DEMO_TIMES, DEMO_VOLUMES, 90, false);
-                setRlResult(data);
-            } catch { /* show placeholder */ }
-            finally { setLoadingRL(false); }
-        })();
-    }, []);
+            optimizeTherapy(uploadResult.times, uploadResult.volumes, 90, false)
+                .then(data => setRlResult(data))
+                .catch(() => { /* show placeholder */ })
+                .finally(() => setLoadingRL(false));
+        }
+    }, [uploadResult]);
 
     const handleReanalyze = async () => {
+        if (!realTimeData.times.length) return;
+        
         setReanalyzing(true);
         setApproved(false);
         try {
             const [pd, sl] = await Promise.all([
-                predictGrowth(DEMO_TIMES, DEMO_VOLUMES),
-                simulateTwin(DEMO_TIMES, DEMO_VOLUMES, 120, 2),
+                predictGrowth(realTimeData.times, realTimeData.volumes),
+                simulateTwin(realTimeData.times, realTimeData.volumes, 120, 2),
             ]);
             setPrediction(pd);
             setSimResult(sl);
@@ -396,20 +375,22 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
     };
 
     const handleExport = () => {
+        if (!patient) return;
+        
         setExporting(true);
         setTimeout(() => {
             const report = {
-                patient: DEMO_PATIENT,
-                tumor_volume_cc: 23.4,
-                growth_rate: prediction?.exponential_rate || 0.027,
-                radiomics: RADIOMICS_DATA,
-                recommendation: rlResult?.recommendation || { best_therapy: 'Adaptive Multi-Modal Therapy' },
+                patient: patient,
+                tumor_volume_cc: realTimeData.volumes[realTimeData.volumes.length - 1] || 0,
+                growth_rate: prediction?.exponential_rate || 0.0,
+                radiomics: uploadResult?.radiomics || {},
+                recommendation: rlResult?.recommendation || { best_therapy: 'Standard of Care' },
                 generated_at: new Date().toISOString(),
             };
             const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = `NDT_Report_${DEMO_PATIENT.patient_id}.json`;
+            a.href = url; a.download = `NDT_Report_${patient.patient_id || 'unknown'}.json`;
             a.click();
             URL.revokeObjectURL(url);
             setExporting(false);
@@ -421,12 +402,12 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
         setTimeout(() => { setApproving(false); setApproved(true); }, 1200);
     };
 
-    // KPI values
-    const tumorVol = 23.4;
-    const growthR = prediction?.exponential_rate || 0.027;
-    const riskScore = 7.8;
-    const psvDim = 64;
-    const medianOS = 15.8;
+    // KPI values derived from real data
+    const tumorVol = realTimeData.volumes[realTimeData.volumes.length - 1] || 0;
+    const growthR = prediction?.exponential_rate || 0.0;
+    const riskScore = uploadResult?.radiomics?.risk_score || 0;
+    const psvDim = uploadResult?.psv_dimension || 64;
+    const medianOS = prediction?.median_survival_months || 0;
 
     // Therapy phases
     const therapyPhases = [
@@ -444,42 +425,60 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
         <div className="dashboard-layout fade-in">
 
             {/* ── Patient Header ─────────────────────────────────────────── */}
-            <div className="dashboard-patient-header">
-                <div>
-                    <div className="patient-id-tag">
-                        Patient: ID <span>#{DEMO_PATIENT.patient_id}</span>
+            {patient ? (
+                <div className="dashboard-patient-header">
+                    <div>
+                        <div className="patient-id-tag">
+                            Patient: ID <span>#{patient.patient_id}</span>
+                        </div>
+                        <div className="patient-subinfo">
+                            <strong>{patient.diagnosis}</strong>
+                            &nbsp;|&nbsp;{patient.gender}, {patient.age} yrs
+                            &nbsp;|&nbsp;Diagnosis: {patient.diagnosis_date}
+                        </div>
                     </div>
-                    <div className="patient-subinfo">
-                        <strong>{DEMO_PATIENT.diagnosis}</strong>
-                        &nbsp;|&nbsp;{DEMO_PATIENT.gender}, {DEMO_PATIENT.age} yrs
-                        &nbsp;|&nbsp;Diagnosis: {DEMO_PATIENT.diagnosis_date}
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <button
+                            className={`topbar-btn ${exporting ? 'disabled' : ''}`}
+                            onClick={handleExport}
+                            id="export-report-btn"
+                            disabled={exporting}
+                            style={{ fontSize: 12 }}
+                        >
+                            {exporting ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> : <ExternalLink size={14} />}
+                            Export Report
+                        </button>
+                        <button
+                            className="topbar-btn primary"
+                            onClick={handleReanalyze}
+                            id="reanalyze-btn"
+                            disabled={reanalyzing}
+                            style={{ fontSize: 12 }}
+                        >
+                            {reanalyzing
+                                ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} />
+                                : <RefreshCw size={14} />}
+                            Re-Analyze
+                        </button>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            ) : (
+                <div className="card" style={{ textAlign: 'center', padding: 40, marginBottom: 20 }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
+                    <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+                        No Patient Data Loaded
+                    </div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 20 }}>
+                        Please load a patient record or upload MRI data to begin analysis
+                    </div>
                     <button
-                        className={`topbar-btn ${exporting ? 'disabled' : ''}`}
-                        onClick={handleExport}
-                        id="export-report-btn"
-                        disabled={exporting}
-                        style={{ fontSize: 12 }}
+                        className="btn btn-primary"
+                        onClick={() => {/* Navigate to patient tab */}}
                     >
-                        {exporting ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} /> : <ExternalLink size={14} />}
-                        Export Report
-                    </button>
-                    <button
-                        className="topbar-btn primary"
-                        onClick={handleReanalyze}
-                        id="reanalyze-btn"
-                        disabled={reanalyzing}
-                        style={{ fontSize: 12 }}
-                    >
-                        {reanalyzing
-                            ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 1.5 }} />
-                            : <RefreshCw size={14} />}
-                        Re-Analyze
+                        Load Patient Data
                     </button>
                 </div>
-            </div>
+            )}
 
             {/* ── KPI Row ────────────────────────────────────────────────── */}
             <div className="kpi-row">
@@ -487,10 +486,10 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
                 <div className="kpi-card" style={{ borderTop: '2px solid #00b4d8' }}>
                     <div className="kpi-label">Tumor Volume</div>
                     <div className="kpi-value">{tumorVol} <span className="kpi-unit">cc</span></div>
-                    <div className="kpi-delta up">↑ +12% in 30 days</div>
+                    <div className="kpi-delta up">{realTimeData.volumes.length > 1 ? `↑ +${((realTimeData.volumes[realTimeData.volumes.length - 1] - realTimeData.volumes[realTimeData.volumes.length - 2]) / realTimeData.volumes[realTimeData.volumes.length - 2] * 100).toFixed(0)}% in 30 days` : 'No data'}</div>
                     <div className="kpi-icon" style={{ top: 8, right: 8, opacity: 0.35 }}><Brain size={28} /></div>
                     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-                        <Sparkline data={DEMO_VOLUMES} color="#00b4d8" height={30} />
+                        <Sparkline data={realTimeData.volumes} color="#00b4d8" height={30} />
                     </div>
                 </div>
 
@@ -501,7 +500,7 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
                         {loadingPred ? '···' : growthR.toFixed(3)}
                         <span className="kpi-unit"> /day</span>
                     </div>
-                    <div className="kpi-delta up" style={{ color: '#f97316' }}>Rapid</div>
+                    <div className="kpi-delta" style={{ color: growthR > 0.02 ? '#f97316' : '#10b981' }}>{growthR > 0.02 ? 'Rapid' : 'Stable'}</div>
                     <div className="kpi-icon" style={{ top: 8, right: 8, opacity: 0.3 }}><LineChartIcon size={26} /></div>
                     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
                         <Sparkline data={[0.018, 0.021, 0.024, 0.025, 0.026, 0.027]} color="#f97316" height={30} />
@@ -667,23 +666,30 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
 
                             {/* Values */}
                             <div>
-                                {Object.entries(RADIOMICS_DATA).map(([key, item]) => (
-                                    <div key={key} className="biomarker-row">
-                                        <span className="biomarker-name">• {item.label}</span>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <span className="biomarker-val" style={{
-                                                color: item.severity === 'High' ? 'var(--red)'
-                                                    : item.severity === 'Elevated' ? 'var(--amber)'
-                                                        : 'var(--green)',
-                                            }}>
-                                                {item.val}{item.unit || ''}
-                                            </span>
-                                            <span className={`severity-${item.severity === 'High' ? 'high' : item.severity === 'Elevated' ? 'elevated' : 'normal'}`}>
-                                                {item.severity}
-                                            </span>
+                                {uploadResult?.radiomics && Object.entries(uploadResult.radiomics).length > 0 ? (
+                                    Object.entries(uploadResult.radiomics).map(([key, item]) => (
+                                        <div key={key} className="biomarker-row">
+                                            <span className="biomarker-name">• {item.label || key}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <span className="biomarker-val" style={{
+                                                    color: item.severity === 'High' ? 'var(--red)'
+                                                        : item.severity === 'Elevated' ? 'var(--amber)'
+                                                            : 'var(--green)',
+                                                }}>
+                                                    {item.val}{item.unit || ''}
+                                                </span>
+                                                <span className={`severity-${item.severity === 'High' ? 'high' : item.severity === 'Elevated' ? 'elevated' : 'normal'}`}>
+                                                    {item.severity || 'Normal'}
+                                                </span>
+                                            </div>
                                         </div>
+                                    ))
+                                ) : (
+                                    <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
+                                        <div style={{ fontSize: 14, marginBottom: 8 }}>No radiomics data available</div>
+                                        <div style={{ fontSize: 12 }}>Upload MRI data with radiomics extraction to see biomarker analysis</div>
                                     </div>
-                                ))}
+                                )}
                             </div>
                         </div>
                     </div>
@@ -707,7 +713,7 @@ export default function Dashboard({ patient = DEMO_PATIENT, uploadResult }) {
                         </div>
 
                         <div className="chart-wrap" style={{ height: 190 }}>
-                            <GrowthChart prediction={prediction} />
+                            <GrowthChart prediction={prediction} times={realTimeData.times} volumes={realTimeData.volumes} />
                         </div>
 
                         {prediction && (

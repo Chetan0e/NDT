@@ -15,32 +15,8 @@ import {
     FileText, Settings, Bell
 } from 'lucide-react';
 
-// ── Demo seed data ────────────────────────────────────────────────────────
-const DEMO_PATIENT = {
-    patient_id: 'NDTP-0457',
-    name: 'Patient #NDTP-0457',
-    age: 52,
-    gender: 'Male',
-    diagnosis: 'Glioblastoma (GBM)',
-    diagnosis_date: '2024-03-14',
-    kps_score: 80,
-    tumor_grade: 4,
-    idh_mutation: false,
-    mgmt_methylation: true,
-    egfr_amplification: true,
-    tp53_mutation: false,
-};
-
-const DEMO_SCANS = [
-    { date: '2024-03-14', volume_cc: 18.2 },
-    { date: '2024-04-13', volume_cc: 19.8 },
-    { date: '2024-05-13', volume_cc: 21.4 },
-    { date: '2024-06-12', volume_cc: 22.7 },
-    { date: '2024-07-12', volume_cc: 23.0 },
-    { date: '2024-08-11', volume_cc: 23.4 },
-];
-const DEMO_TIMES = DEMO_SCANS.map((_, i) => [0, 30, 60, 90, 120, 150][i]);
-const DEMO_VOLUMES = DEMO_SCANS.map(s => s.volume_cc);
+// ── Real data integration ────────────────────────────────────────────────────────
+// Patient data will be loaded from backend API
 
 const NAV_SECTIONS = [
     {
@@ -86,9 +62,10 @@ const SIDEBAR_STATS = [
 export default function App() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [uploadResult, setUploadResult] = useState(null);
-    const [patient] = useState(DEMO_PATIENT);
+    const [patient, setPatient] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notifCount] = useState(2);
+    const [loading, setLoading] = useState(true);
 
     const handleUploadResult = (res) => {
         setUploadResult(res);
@@ -214,10 +191,10 @@ export default function App() {
                 {/* ── Main Content ─────────────────────────────────────── */}
                 <main className="content">
                     {activeTab === 'dashboard' && (
-                        <Dashboard patient={patient} uploadResult={uploadResult} />
+                        <Dashboard patient={patient} uploadResult={uploadResult} setPatient={setPatient} />
                     )}
                     {activeTab === 'patient' && (
-                        <PatientPanel patient={patient} />
+                        <PatientPanel patient={patient} setPatient={setPatient} />
                     )}
                     {activeTab === 'upload' && (
                         <Upload patient={patient} onResult={handleUploadResult} />
@@ -227,19 +204,19 @@ export default function App() {
                     )}
                     {activeTab === 'graph' && (
                         <Graph
-                            times={DEMO_TIMES}
-                            volumes={DEMO_VOLUMES}
-                            scanHistory={DEMO_SCANS}
+                            times={uploadResult?.times || []}
+                            volumes={uploadResult?.volumes || []}
+                            scanHistory={uploadResult?.scanHistory || []}
                         />
                     )}
                     {activeTab === 'radiomics' && (
                         <Radiomics data={uploadResult?.radiomics} />
                     )}
                     {activeTab === 'twin' && (
-                        <TwinSimulator times={DEMO_TIMES} volumes={DEMO_VOLUMES} />
+                        <TwinSimulator times={uploadResult?.times || []} volumes={uploadResult?.volumes || []} />
                     )}
                     {activeTab === 'rl' && (
-                        <RLOptimizer times={DEMO_TIMES} volumes={DEMO_VOLUMES} />
+                        <RLOptimizer times={uploadResult?.times || []} volumes={uploadResult?.volumes || []} />
                     )}
                     {activeTab === 'survival' && (
                         <Survival patient={patient} />
