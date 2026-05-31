@@ -86,9 +86,16 @@ function Sparkline({ data, color = '#00b4d8', height = 36 }) {
 }
 
 // ── Survival mini KM ─────────────────────────────────────────────────────
-function SurvivalMiniChart({ medianOS = 15.8, ci = { l: 15.2, h: 19.41 } }) {
-    const months = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60];
-    const survProb = months.map(m => Math.max(0, Math.exp(-0.045 * m)));
+function SurvivalMiniChart({ survivalData }) {
+    // Use real survival data from backend prediction
+    const medianOS = survivalData?.median_os_months || 0;
+    const ci = survivalData?.confidence_interval_months || { lower: 0, upper: 0 };
+    const kaplanMeierCurve = survivalData?.kaplan_meier_curve || {};
+    
+    // Convert KM curve dict to arrays for chart
+    const months = Object.keys(kaplanMeierCurve).map(Number).sort((a, b) => a - b);
+    const survProb = months.map(m => kaplanMeierCurve[m] || 0);
+    
     const chartData = {
         labels: months.map(m => `${m}mo`),
         datasets: [{
@@ -139,7 +146,7 @@ function SurvivalMiniChart({ medianOS = 15.8, ci = { l: 15.2, h: 19.41 } }) {
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Median OS</div>
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8 }}>
-                135% CI: {ci.l}–{ci.h}
+                95% CI: {ci.lower}–{ci.upper}
             </div>
             <div className="chart-wrap" style={{ height: 100 }}>
                 <Line data={chartData} options={opts} />
@@ -149,12 +156,32 @@ function SurvivalMiniChart({ medianOS = 15.8, ci = { l: 15.2, h: 19.41 } }) {
 }
 
 // ── Biomarker Radar ───────────────────────────────────────────────────────
-function BiomarkerRadar() {
+function BiomarkerRadar({ radiomics }) {
+    // Extract real biomarker values from radiomics data
+    const biomarkerLabels = ['Entropy', 'Contrast', 'Necrosis', 'Cellularity', 'Invasiveness', 'EGFR'];
+    const biomarkerKeys = ['firstorder_Entropy', 'glcm_Contrast', 'firstorder_Energy', 'firstorder_Mean', 'shape_SurfaceVolumeRatio', 'shape_Elongation'];
+    
+    const biomarkerData = biomarkerKeys.map(key => {
+        const val = radiomics?.[key];
+        if (val === undefined || val === null) return 0;
+        // Normalize to 0-1 range based on typical clinical ranges
+        const ranges = {
+            'firstorder_Entropy': [0, 10],
+            'glcm_Contrast': [0, 500],
+            'firstorder_Energy': [0, 100000],
+            'firstorder_Mean': [0, 1],
+            'shape_SurfaceVolumeRatio': [0, 1],
+            'shape_Elongation': [0, 1],
+        };
+        const [min, max] = ranges[key] || [0, 1];
+        return Math.min(1, Math.max(0, (val - min) / (max - min)));
+    });
+
     const data = {
-        labels: ['Entropy', 'Contrast', 'Necrosis', 'Cellularity', 'Invasiveness', 'EGFR'],
+        labels: biomarkerLabels,
         datasets: [{
             label: 'Biomarkers',
-            data: [0.64, 0.72, 0.32, 0.89, 0.81, 0.95],
+            data: biomarkerData,
             backgroundColor: 'rgba(239,68,68,0.12)',
             borderColor: '#ef4444',
             borderWidth: 1.5,
@@ -324,8 +351,10 @@ export default function Dashboard({ patient, uploadResult, setPatient }) {
     const [prediction, setPrediction] = useState(null);
     const [simResult, setSimResult] = useState(null);
     const [rlResult, setRlResult] = useState(null);
+    const [survivalResult, setSurvivalResult] = useState(null);
     const [loadingPred, setLoadingPred] = useState(false);
     const [loadingRL, setLoadingRL] = useState(false);
+    const [loadingSurvival, setLoadingSurvival] = useState(false);
     const [mriSlice, setMriSlice] = useState('Axial');
     const [mriMode, setMriMode] = useState('T1c');
     const [approving, setApproving] = useState(false);
@@ -409,17 +438,17 @@ export default function Dashboard({ patient, uploadResult, setPatient }) {
     const psvDim = uploadResult?.psv_dimension || 64;
     const medianOS = prediction?.median_survival_months || 0;
 
-    // Therapy phases
-    const therapyPhases = [
+    // Therapy phases from RL recommendation
+    const therapyPhases = rlResult?.recommendation?.therapy_phases || [
         { label: 'Month 1', desc: 'RT + TMZ (Temozolomide)', color: '#ef4444', intensity: 90, severity: 'High' },
         { label: 'Month 2-4', desc: 'Targeted + Immunotherapy', color: '#fbbf24', intensity: 65, severity: 'Moderate' },
         { label: 'Month 5+', desc: 'Maintenance Phase', color: '#00e676', intensity: 30, severity: 'Low' },
     ];
 
-    const reduction = rlResult?.recommendation?.volume_reduction_pct || 68;
+    const reduction = rlResult?.recommendation?.volume_reduction_pct || 0;
     const toxicity = rlResult?.recommendation?.therapy_intensity
         ? (rlResult.recommendation.therapy_intensity * 10 / 3).toFixed(1)
-        : 3.2;
+        : 'N/A';
 
     return (
         <div className="dashboard-layout fade-in">
@@ -662,7 +691,7 @@ export default function Dashboard({ patient, uploadResult, setPatient }) {
 
                         <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 12, alignItems: 'start' }}>
                             {/* Radar */}
-                            <BiomarkerRadar />
+                            <BiomarkerRadar radiomics={uploadResult?.radiomics} />
 
                             {/* Values */}
                             <div>
@@ -882,7 +911,7 @@ export default function Dashboard({ patient, uploadResult, setPatient }) {
                             ))}
                         </div>
 
-                        <SurvivalMiniChart medianOS={medianOS} ci={{ l: 15.2, h: 19.41 }} />
+                        <SurvivalMiniChart survivalData={survivalResult} />
                     </div>
                 </div>
             </div>

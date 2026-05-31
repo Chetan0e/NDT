@@ -112,18 +112,18 @@ export default function Radiomics({ data }) {
                 <div className="card-title">Feature Summary</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                     {[
-                        { label: 'Heterogeneity', val: features['firstorder_Entropy']?.toFixed(2), key: 'firstorder_Entropy' },
-                        { label: 'Sphericity', val: features['shape_Sphericity']?.toFixed(2), key: 'shape_Sphericity' },
-                        { label: 'Texture Contrast', val: features['glcm_Contrast']?.toFixed(1), key: 'glcm_Contrast' },
-                        { label: 'Uniformity', val: features['glcm_Homogeneity']?.toFixed(3), key: 'glcm_Homogeneity' },
+                        { label: 'Heterogeneity', val: features['firstorder_Entropy']?.toFixed(2), numVal: features['firstorder_Entropy'], key: 'firstorder_Entropy' },
+                        { label: 'Sphericity', val: features['shape_Sphericity']?.toFixed(2), numVal: features['shape_Sphericity'], key: 'shape_Sphericity' },
+                        { label: 'Texture Contrast', val: features['glcm_Contrast']?.toFixed(1), numVal: features['glcm_Contrast'], key: 'glcm_Contrast' },
+                        { label: 'Uniformity', val: features['glcm_Homogeneity']?.toFixed(3), numVal: features['glcm_Homogeneity'], key: 'glcm_Homogeneity' },
                     ].map(item => (
                         <div key={item.label} style={{
                             background: 'rgba(255,255,255,0.85)',
-                            border: `1px solid ${getBarColor(item.key, item.val)}44`,
+                            border: `1px solid ${getBarColor(item.key, item.numVal)}44`,
                             borderRadius: 10, padding: '12px 16px', minWidth: 120,
                         }}>
                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{item.label}</div>
-                            <div style={{ fontSize: 22, fontWeight: 700, color: getBarColor(item.key, item.val), fontFamily: 'var(--font-mono)' }}>
+                            <div style={{ fontSize: 22, fontWeight: 700, color: getBarColor(item.key, item.numVal), fontFamily: 'var(--font-mono)' }}>
                                 {item.val || '—'}
                             </div>
                         </div>
