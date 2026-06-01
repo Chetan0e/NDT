@@ -1,24 +1,6 @@
 import React, { useState } from 'react';
 import { interpretFeatures } from '../api';
 
-// Fallback demo data for when no scan has been uploaded yet
-// This allows the component to be functional even without real MRI data
-const DEMO_FEATURES = {
-    "shape_Elongation": 0.72,
-    "shape_Sphericity": 0.54,
-    "shape_SurfaceVolumeRatio": 0.31,
-    "firstorder_Entropy": 5.12,
-    "firstorder_Kurtosis": 2.87,
-    "firstorder_Skewness": 0.42,
-    "firstorder_Energy": 12043.2,
-    "firstorder_Mean": 0.431,
-    "firstorder_Std": 0.213,
-    "glcm_Contrast": 187.4,
-    "glcm_Correlation": 0.762,
-    "glcm_Dissimilarity": 8.34,
-    "glcm_Entropy": 5.89,
-    "glcm_Homogeneity": 0.34,
-};
 
 const RANGE_MAP = {
     "shape_Sphericity": { low: 0.0, high: 1.0, warn: 0.5, danger: 0.3, reverse: true },
@@ -50,8 +32,8 @@ export default function Radiomics({ data }) {
     const [filter, setFilter] = useState('');
     const [error, setError] = useState(null);
 
-    const features = custom || data || DEMO_FEATURES;
-    const isDemoMode = !data && !custom;
+    const features = custom || data;
+    const hasData = features && Object.keys(features).length > 0;
 
     const fetchInterpretation = async () => {
         setLoading(true);
@@ -94,12 +76,21 @@ export default function Radiomics({ data }) {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                    {isDemoMode && <span className="badge badge-amber">Demo Data</span>}
-                    <button className="btn btn-outline" onClick={fetchInterpretation} disabled={loading}>
+                    <button className="btn btn-outline" onClick={fetchInterpretation} disabled={loading || !hasData}>
                         {loading ? '⏳' : '🔍 Interpret'}
                     </button>
                 </div>
             </div>
+
+            {!hasData && (
+                <div className="card" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
+                    <div className="card-title" style={{ marginBottom: 8 }}>No Radiomics Data</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                        Upload an MRI scan to extract and view radiomics features.
+                    </div>
+                </div>
+            )}
 
             {error && (
                 <div style={{ padding: '10px 14px', background: '#fee2e2', border: '1px solid rgba(255,82,82,0.3)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--red)' }}>
@@ -108,7 +99,8 @@ export default function Radiomics({ data }) {
             )}
 
             {/* Top summary badges */}
-            <div className="card" style={{ marginBottom: 20 }}>
+            {hasData && (
+                <div className="card" style={{ marginBottom: 20 }}>
                 <div className="card-title">Feature Summary</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                     {[
@@ -130,20 +122,23 @@ export default function Radiomics({ data }) {
                     ))}
                 </div>
             </div>
+            )}
 
             {/* Filter */}
-            <div style={{ marginBottom: 16 }}>
-                <input
-                    className="input"
-                    placeholder="🔍 Filter features…"
-                    value={filter}
-                    onChange={e => setFilter(e.target.value)}
-                    style={{ maxWidth: 300 }}
-                />
-            </div>
+            {hasData && (
+                <div style={{ marginBottom: 16 }}>
+                    <input
+                        className="input"
+                        placeholder="🔍 Filter features…"
+                        value={filter}
+                        onChange={e => setFilter(e.target.value)}
+                        style={{ maxWidth: 300 }}
+                    />
+                </div>
+            )}
 
             {/* Feature groups */}
-            {Object.entries(groups).map(([groupName, items]) => {
+            {hasData && Object.entries(groups).map(([groupName, items]) => {
                 if (items.length === 0) return null;
                 return (
                     <div className="card" key={groupName} style={{ marginBottom: 16 }}>
