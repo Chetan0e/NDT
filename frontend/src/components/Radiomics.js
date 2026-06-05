@@ -50,9 +50,11 @@ export default function Radiomics({ data }) {
 
     const displayItems = interpreted
         ? interpreted.filter(f => !filter || f.label.toLowerCase().includes(filter.toLowerCase()))
-        : Object.entries(features)
-            .filter(([k]) => !filter || k.toLowerCase().includes(filter.toLowerCase()))
-            .map(([key, val]) => ({ key, label: key, value: val }));
+        : hasData
+            ? Object.entries(features)
+                .filter(([k]) => !filter || k.toLowerCase().includes(filter.toLowerCase()))
+                .map(([key, val]) => ({ key, label: key, value: val }))
+            : [];
 
     // Group by category
     const groups = {
