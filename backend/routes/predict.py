@@ -2,7 +2,7 @@
 Predict Route — Tumor Growth Prediction from Longitudinal Scan History
 """
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
 from models.predictor import predictor
 
 router = APIRouter()
@@ -14,12 +14,11 @@ class PredictRequest(BaseModel):
     future_days: list[int] = [30, 60, 90]
     patient_id: str | None = None
 
-    @field_validator("times", "volumes")
-    @classmethod
-    def must_have_two_points(cls, v):
-        if len(v) < 2:
+    @model_validator(mode="after")
+    def validate_points(self):
+        if len(self.times) == len(self.volumes) and len(self.times) < 2:
             raise ValueError("At least 2 data points required.")
-        return v
+        return self
 
 
 @router.post("/predict", summary="Predict Tumor Growth")

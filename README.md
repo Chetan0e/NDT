@@ -124,14 +124,14 @@ Predictions are returned for days +30, +60, +90 from the last scan date, annotat
 This is the mathematical core of the platform. The tumor's future behavior is simulated using a **personalized logistic growth ordinary differential equation** with therapy dampening:
 
 ```
-dV/dt = α · V · (1 - V/K) - β · T
+dV/dt = α · V · (1 - V/K) - β · T · V
 ```
 
 | Parameter | Meaning | Estimated from |
 |-----------|---------|---------------|
 | `α` (alpha) | Intrinsic growth rate | Fitted to patient's scan history |
-| `K` | Carrying capacity (max tumor size) | Estimated as 10× initial volume |
-| `β` (beta) | Treatment response coefficient | Fixed at 0.01 × therapy level |
+| `K` | Carrying capacity (max tumor size) | Fitted via logistic curve or estimated from volume |
+| `β` (beta) | Treatment response coefficient (fractional kill rate) | Baseline ~0.02 (modulated by genomics/sensitivity) |
 | `T` | Therapy intensity | External input (0–3 scale) |
 
 The `TwinBuilder` class estimates `α` and `K` by fitting the logistic model to the patient's actual scan data using `scipy.optimize.curve_fit`.

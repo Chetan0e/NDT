@@ -2,7 +2,7 @@
 Digital Twin — Tumor Growth ODE Simulator
 Models tumor volume dynamics using a logistic growth equation with therapy:
 
-    dV/dt = α · V · (1 − V/K) − β · T
+    dV/dt = α · V · (1 − V/K) − β · T · V
 
 Where:
     V = tumor volume (mm³ or cc)
@@ -92,8 +92,8 @@ class TumorTwin:
         for d in range(days):
             intensity = therapy_schedule[d] if therapy_schedule else T
 
-            # Logistic growth with therapy
-            dV = self.alpha * V * (1 - V / self.K) - self.beta * intensity
+            # Logistic growth with therapy (fractional log-kill model)
+            dV = (self.alpha * (1.0 - (V / self.K)) - self.beta * intensity) * V
 
             # Optional biological noise (Gaussian)
             if self.noise_std > 0:

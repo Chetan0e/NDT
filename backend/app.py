@@ -90,7 +90,7 @@ async def add_process_time_header(request: Request, call_next):
     response = await call_next(request)
     elapsed_ms = (time.perf_counter() - t0) * 1000
     response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
-    logger.info("%s %s → %d  (%.1f ms)", request.method, request.url.path, response.status_code, elapsed_ms)
+    logger.info("%s %s -> %d  (%.1f ms)", request.method, request.url.path, response.status_code, elapsed_ms)
     return response
 
 

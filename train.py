@@ -48,14 +48,16 @@ def get_args():
     parser.add_argument("--val_ratio", type=float, default=0.2)
     parser.add_argument("--save_path", type=str, default=str(WEIGHTS_DIR / "unet_brats.pth"))
     parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--in_channels", type=int, default=4, help="Input channels (1 for single MRI sequence, 4 for multi-modal BraTS)")
+    parser.add_argument("--out_channels", type=int, default=4, help="Output channels (2 for binary tumor mask, 4 for subregions)")
     return parser.parse_args()
 
 
-def build_model(device: str) -> nn.Module:
+def build_model(device: str, in_channels: int = 4, out_channels: int = 4) -> nn.Module:
     return UNet(
         spatial_dims=3,
-        in_channels=4,          # FLAIR, T1, T1ce, T2
-        out_channels=4,         # Background + 3 BraTS labels
+        in_channels=in_channels,
+        out_channels=out_channels,
         channels=(16, 32, 64, 128, 256),
         strides=(2, 2, 2, 2),
         num_res_units=2,
@@ -86,7 +88,7 @@ def train(args):
                           shuffle=False, num_workers=args.num_workers)
 
     # Model
-    model = build_model(args.device)
+    model = build_model(args.device, in_channels=args.in_channels, out_channels=args.out_channels)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     loss_fn = DiceCELoss(to_onehot_y=True, softmax=True)
@@ -130,7 +132,7 @@ def train(args):
             for x, y in val_dl:
                 x = x.to(device)
                 y_onehot = torch.nn.functional.one_hot(
-                    y.long(), num_classes=4
+                    y.long(), num_classes=args.out_channels
                 ).permute(0, 4, 1, 2, 3).float().to(device)
 
                 pred = torch.softmax(model(x), dim=1)

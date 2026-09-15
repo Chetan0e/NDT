@@ -80,28 +80,28 @@ class Segmentor:
         Returns:
             Binary mask of shape (D, H, W), uint8
         """
-        with torch.no_grad():
-            # Pre-process
-            tensor = self.preprocess(volume)             # (1, D, H, W)
-            tensor = tensor.unsqueeze(0).to(self.device) # (1, 1, D, H, W)
-
-            # Forward pass
-            logits = self.model(tensor)                  # (1, 2, D, H, W)
-            probs = torch.softmax(logits, dim=1)
-            tumor_prob = probs[0, 1]                     # (D, H, W)
-
-            # Threshold at 0.5
-            mask = (tumor_prob > 0.5).cpu().numpy().astype(np.uint8)
-
-        return mask
+        result = self.predict_with_confidence(volume)
+        return result["mask"]
 
     def predict_with_confidence(self, volume: np.ndarray) -> dict:
-        """Returns mask + average confidence score."""
+        """Returns mask matching original volume shape + average confidence score."""
+        orig_shape = volume.shape
         with torch.no_grad():
-            tensor = self.preprocess(volume).unsqueeze(0).to(self.device)
+            tensor = self.preprocess(volume).unsqueeze(0).to(self.device)  # (1, 1, D_target, H_target, W_target)
             logits = self.model(tensor)
-            probs = torch.softmax(logits, dim=1)
-            tumor_prob = probs[0, 1].cpu().numpy()
+            probs = torch.softmax(logits, dim=1)  # (1, 2, ...)
+
+            if orig_shape != self.TARGET_SHAPE:
+                tumor_prob_tensor = torch.nn.functional.interpolate(
+                    probs[:, 1:2],
+                    size=orig_shape,
+                    mode="trilinear",
+                    align_corners=False,
+                )[0, 0]
+            else:
+                tumor_prob_tensor = probs[0, 1]
+
+            tumor_prob = tumor_prob_tensor.cpu().numpy()
 
         mask = (tumor_prob > 0.5).astype(np.uint8)
         confidence = float(tumor_prob[mask == 1].mean()) if mask.sum() > 0 else 0.0

@@ -86,8 +86,8 @@ class TumorGrowthEnv(gym.Env):
     def step(self, action: np.ndarray):
         T = float(np.clip(action[0], 0, 3))
 
-        # ODE step
-        dV = self.alpha * self.volume * (1 - self.volume / self.K) - self.beta * T
+        # ODE step (proportional log-kill)
+        dV = (self.alpha * (1.0 - (self.volume / self.K)) - self.beta * T) * self.volume
         self.volume = max(self.volume + dV, 0.0)
         self.day += 1
         self.trajectory.append(self.volume)
@@ -156,6 +156,7 @@ class RLTherapyOptimizer:
         beta: float,
         days: int = 60,
         toxicity_budget: float = 2.0,
+        **kwargs,
     ) -> TherapyRecommendation:
         """Try all discrete therapy levels; pick best within toxicity budget."""
 
@@ -163,12 +164,10 @@ class RLTherapyOptimizer:
         for intensity, label in self.THERAPY_MAP.items():
             if intensity > toxicity_budget:
                 continue
-            env = TumorGrowthEnv(initial_volume, days, alpha, K, beta)
-            env.reset()
 
             vol = initial_volume
             for _ in range(days):
-                dV = alpha * vol * (1 - vol / K) - beta * intensity
+                dV = (alpha * (1.0 - (vol / K)) - beta * intensity) * vol
                 vol = max(vol + dV, 0.0)
 
             reduction = (initial_volume - vol) / initial_volume * 100 if initial_volume > 0 else 0
@@ -203,10 +202,12 @@ class RLTherapyOptimizer:
         beta: float,
         days: int = 60,
         train_steps: int = 10_000,
+        toxicity_budget: float = 2.0,
+        **kwargs,
     ) -> TherapyRecommendation:
         """Train a PPO agent on the patient's tumor twin environment."""
         if not self._sb3_available:
-            return self.optimize_heuristic(initial_volume, alpha, K, beta, days)
+            return self.optimize_heuristic(initial_volume, alpha, K, beta, days, toxicity_budget=toxicity_budget, **kwargs)
 
         from stable_baselines3 import PPO
         from stable_baselines3.common.env_checker import check_env

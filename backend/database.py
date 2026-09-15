@@ -6,9 +6,8 @@ from sqlalchemy import (
     create_engine, Column, Integer, Float, String,
     DateTime, JSON, Text, Boolean
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from sqlalchemy.orm import declarative_base, sessionmaker
+from datetime import datetime, timezone
 from config import DATABASE_URL
 
 # Engine setup
@@ -34,7 +33,7 @@ class Patient(Base):
     age = Column(Integer)
     gender = Column(String(16))
     diagnosis = Column(String(256))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Genomic markers
     idh_mutation = Column(Boolean, default=False)
@@ -55,7 +54,7 @@ class Scan(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(String(64), index=True, nullable=False)
     scan_date = Column(String(32), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Segmentation outputs
     tumor_volume_mm3 = Column(Float)        # Tumor volume in mm³
@@ -82,7 +81,7 @@ class GrowthRecord(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(String(64), index=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Growth parameters
     growth_rate_alpha = Column(Float)       # Exponential growth rate
@@ -107,7 +106,7 @@ class TherapySimulation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(String(64), index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Input state
     initial_volume = Column(Float)

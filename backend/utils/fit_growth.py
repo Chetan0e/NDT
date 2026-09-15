@@ -4,7 +4,8 @@ Fits tumor growth curves to longitudinal scan data to extract
 patient-specific parameters for the digital twin.
 """
 import numpy as np
-from scipy.optimize import curve_fit
+import warnings
+from scipy.optimize import curve_fit, OptimizeWarning
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,9 @@ def estimate_growth_params(
             # Initial guess: current vol, slight growth, 10× current as K
             p0 = [v[0], 0.02, max(v) * 5]
             bounds = ([0, 0, max(v)], [np.inf, 1.0, np.inf])
-            popt, _ = curve_fit(_logistic_growth, t, v, p0=p0, bounds=bounds, maxfev=10000)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", OptimizeWarning)
+                popt, _ = curve_fit(_logistic_growth, t, v, p0=p0, bounds=bounds, maxfev=10000)
             V0_fit, alpha_fit, K_fit = popt
 
             v_pred = _logistic_growth(t, *popt)

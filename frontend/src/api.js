@@ -153,6 +153,28 @@ export const saveScan = async (data) => {
     };
 };
 
+// Survival Analysis Endpoints
+export const predictSurvival = async (params) => {
+    const res = await api.post('/survival/predict', params);
+    return res.data;
+};
+
+export const getSurvivalReference = async () => {
+    const res = await api.get('/survival/reference');
+    return res.data;
+};
+
+// Analytics Endpoints
+export const getAnalyticsOverview = async () => {
+    const res = await api.get('/analytics/overview');
+    return res.data;
+};
+
+export const filterCohort = async (filterParams) => {
+    const res = await api.post('/analytics/cohort', filterParams);
+    return res.data;
+};
+
 // Health check utility
 export const healthCheck = async () => {
     try {
