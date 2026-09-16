@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Chart as ChartJS, CategoryScale, LinearScale, PointElement,
     LineElement, Title, Tooltip, Legend, Filler
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { predictSurvival, getSurvivalReference } from '../api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
-
-const API = (process.env.REACT_APP_API_URL || 'http://localhost:8000');
 
 const RISK_COLORS = {
     'Low': { bg: 'rgba(0,230,118,0.1)', border: '#00e676', text: '#00e676' },
@@ -65,8 +64,8 @@ export default function Survival({ patient }) {
         tumor_grade: patient?.tumor_grade || 4,
         idh_mutation: patient?.idh_mutation || false,
         mgmt_methylation: patient?.mgmt_methylation || false,
-        egfr_amplification: false,
-        tp53_mutation: false,
+        egfr_amplification: patient?.egfr_amplification || false,
+        tp53_mutation: patient?.tp53_mutation || false,
         tumor_volume_cc: 30.0,
         growth_rate_alpha: 0.02,
         extent_of_resection: 'subtotal',
@@ -78,19 +77,29 @@ export default function Survival({ patient }) {
     const [tab, setTab] = useState('predict');
     const [error, setError] = useState(null);
 
+    useEffect(() => {
+        if (patient) {
+            setForm(prev => ({
+                ...prev,
+                age: patient.age || prev.age,
+                kps_score: patient.kps_score || prev.kps_score,
+                tumor_grade: patient.tumor_grade || prev.tumor_grade,
+                idh_mutation: patient.idh_mutation ?? prev.idh_mutation,
+                mgmt_methylation: patient.mgmt_methylation ?? prev.mgmt_methylation,
+                egfr_amplification: patient.egfr_amplification ?? prev.egfr_amplification,
+                tp53_mutation: patient.tp53_mutation ?? prev.tp53_mutation,
+            }));
+        }
+    }, [patient]);
+
     const predict = async () => {
         setLoading(true); setError(null);
         try {
-            const res = await fetch(`${API}/survival/predict`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...form,
-                    timepoints_months: [1, 3, 6, 9, 12, 18, 24, 30, 36],
-                }),
+            const data = await predictSurvival({
+                ...form,
+                timepoints_months: [1, 3, 6, 9, 12, 18, 24, 30, 36],
             });
-            if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-            setResult(await res.json());
+            setResult(data);
         } catch (e) { setError(e.message); }
         finally { setLoading(false); }
     };
@@ -98,8 +107,8 @@ export default function Survival({ patient }) {
     const loadRef = async () => {
         setLoading(true); setError(null);
         try {
-            const res = await fetch(`${API}/survival/reference`);
-            setRefCurves(await res.json());
+            const data = await getSurvivalReference();
+            setRefCurves(data);
         } catch (e) { setError(e.message); }
         finally { setLoading(false); }
     };

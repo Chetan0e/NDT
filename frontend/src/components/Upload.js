@@ -1,14 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { uploadMRI, saveScan } from '../api';
+import { uploadMRI, saveScan, getSampleMRI } from '../api';
 
-export default function Upload({ patient, scanHistory, onScanResult }) {
+export default function Upload({ patient, scanHistory, onScanResult, onResult }) {
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [loadingSample, setLoadingSample] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
     const [extractR, setExtractR] = useState(false);
     const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]);
+
+    const notifyParent = onResult || onScanResult;
 
     const onDrop = useCallback((accepted) => {
         setFiles(accepted);
@@ -32,22 +35,23 @@ export default function Upload({ patient, scanHistory, onScanResult }) {
         setError(null);
 
         try {
-            const data = await uploadMRI(
+            const rawRes = await uploadMRI(
                 files,
                 patient?.patient_id,
                 scanDate,
                 extractR,
             );
+            const data = rawRes.data || rawRes;
             setResult(data);
-            onScanResult?.(data);
+            notifyParent?.(data);
 
             // Auto-save to DB
             if (patient?.patient_id) {
                 await saveScan({
                     patient_id: patient.patient_id,
                     scan_date: scanDate,
-                    tumor_volume_mm3: data.volume_mm3,
-                    tumor_volume_cc: data.volume_cc,
+                    tumor_volume_mm3: data.volume_mm3 || data.volume?.volume_mm3 || 0,
+                    tumor_volume_cc: data.volume_cc || data.volume?.volume_cc || 0,
                     radiomics: data.radiomics || null,
                 }).catch(() => { });
             }
@@ -55,6 +59,20 @@ export default function Upload({ patient, scanHistory, onScanResult }) {
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleLoadSample = async () => {
+        setLoadingSample(true);
+        setError(null);
+        try {
+            const sampleData = await getSampleMRI();
+            setResult(sampleData);
+            notifyParent?.(sampleData);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoadingSample(false);
         }
     };
 
@@ -169,7 +187,7 @@ export default function Upload({ patient, scanHistory, onScanResult }) {
 
                     <button
                         className="btn btn-primary"
-                        style={{ width: '100%' }}
+                        style={{ width: '100%', marginBottom: 10 }}
                         onClick={handleUpload}
                         disabled={loading || files.length === 0}
                     >
@@ -179,6 +197,15 @@ export default function Upload({ patient, scanHistory, onScanResult }) {
                                 Processing…
                             </>
                         ) : '🚀 Run Segmentation'}
+                    </button>
+
+                    <button
+                        className="btn btn-outline"
+                        style={{ width: '100%' }}
+                        onClick={handleLoadSample}
+                        disabled={loadingSample || loading}
+                    >
+                        {loadingSample ? '⏳ Loading Sample Volume…' : '🧪 Load Sample MRI (1-Click Test)'}
                     </button>
 
                     {error && (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Upload from './components/Upload';
 import Viewer3D from './components/Viewer3D';
@@ -8,15 +8,15 @@ import TwinSimulator from './components/TwinSimulator';
 import RLOptimizer from './components/RLOptimizer';
 import Survival from './components/Survival';
 import PatientPanel from './components/PatientPanel';
+import Reports from './components/Reports';
+import Settings from './components/Settings';
 import Logo from './components/Logo';
+import { listPatients, getPatient, getAnalyticsOverview } from './api';
 import {
     LayoutDashboard, Users, UploadCloud, BoxSelect,
     Microscope, Network, Cpu, LineChart, Activity,
-    FileText, Settings, Bell
+    FileText, Settings as SettingsIcon, Bell
 } from 'lucide-react';
-
-// ── Real data integration ────────────────────────────────────────────────────────
-// Patient data will be loaded from backend API
 
 const NAV_SECTIONS = [
     {
@@ -47,16 +47,9 @@ const NAV_SECTIONS = [
         label: 'Reporting',
         items: [
             { id: 'reports', icon: <FileText size={16} />, label: 'Reports', badge: null },
-            { id: 'settings', icon: <Settings size={16} />, label: 'Settings', badge: null, hasArrow: true },
+            { id: 'settings', icon: <SettingsIcon size={16} />, label: 'Settings', badge: null, hasArrow: true },
         ],
     },
-];
-
-// Sidebar stats
-const SIDEBAR_STATS = [
-    { label: 'Patients', value: '1,247' },
-    { label: 'Scans Processed', value: '8,932' },
-    { label: 'Models Trained', value: '26' },
 ];
 
 export default function App() {
@@ -65,14 +58,75 @@ export default function App() {
     const [patient, setPatient] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notifCount] = useState(2);
-    const [loading, setLoading] = useState(true);
+    const [sidebarStats, setSidebarStats] = useState([
+        { label: 'Patients', value: '5' },
+        { label: 'Scans Processed', value: '13' },
+        { label: 'Models Active', value: '4' },
+    ]);
+
+    // Initial load: Fetch stats and auto-select primary patient
+    useEffect(() => {
+        getAnalyticsOverview()
+            .then(stats => {
+                if (stats?.patient_statistics) {
+                    setSidebarStats([
+                        { label: 'Patients', value: String(stats.patient_statistics.total_patients || 5) },
+                        { label: 'Scans Processed', value: String(stats.patient_statistics.total_scans || 13) },
+                        { label: 'Models Active', value: '4' },
+                    ]);
+                }
+            })
+            .catch(() => {});
+
+        listPatients()
+            .then(list => {
+                if (list && list.length > 0 && !patient) {
+                    getPatient(list[0].patient_id).then(rec => {
+                        setPatient({
+                            ...rec.patient,
+                            scans: rec.scans,
+                            scan_count: rec.scan_count,
+                            latest_scan: rec.latest_scan,
+                            growth_record: rec.growth_record,
+                        });
+                    }).catch(() => {});
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     const handleUploadResult = (res) => {
         setUploadResult(res);
         setActiveTab('viewer');
     };
 
-    const tabLabel = NAV_SECTIONS.flatMap(s => s.items).find(i => i.id === activeTab)?.label || '';
+    // Derive longitudinal scan arrays from upload or selected patient
+    const activeTimes = uploadResult?.times || (
+        patient?.scans && patient.scans.length >= 2
+            ? patient.scans.map((s, idx) => {
+                const base = new Date(patient.scans[0].scan_date).getTime();
+                const cur = new Date(s.scan_date).getTime();
+                return Math.round((cur - base) / (1000 * 60 * 60 * 24)) || idx * 30;
+            })
+            : []
+    );
+
+    const activeVolumes = uploadResult?.volumes || (
+        patient?.scans && patient.scans.length >= 2
+            ? patient.scans.map(s => s.tumor_volume_cc || (s.tumor_volume_mm3 ? s.tumor_volume_mm3 / 1000.0 : 0))
+            : []
+    );
+
+    const activeHistory = uploadResult?.scanHistory || (
+        patient?.scans?.map(s => ({
+            date: s.scan_date,
+            volume: s.tumor_volume_cc || (s.tumor_volume_mm3 ? s.tumor_volume_mm3 / 1000.0 : 0),
+        })) || []
+    );
+
+    const activeRadiomics = uploadResult?.radiomics || (
+        patient?.scans?.find(s => s.radiomics)?.radiomics || null
+    );
 
     return (
         <div className="app-layout">
@@ -102,6 +156,25 @@ export default function App() {
 
                 {/* Right */}
                 <div className="topbar-right">
+                    {/* Active patient chip if selected */}
+                    {patient && (
+                        <div
+                            onClick={() => setActiveTab('patient')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '6px 12px', background: 'rgba(2,132,199,0.08)',
+                                border: '1px solid rgba(2,132,199,0.25)', borderRadius: 20,
+                                cursor: 'pointer', fontSize: 12
+                            }}
+                            title="Click to view patient profile"
+                        >
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--cyan)' }} />
+                            <span style={{ color: 'var(--text-secondary)' }}>Active:</span>
+                            <strong style={{ color: 'var(--cyan)' }}>#{patient.patient_id}</strong>
+                            <span style={{ color: 'var(--text-muted)' }}>({patient.name})</span>
+                        </div>
+                    )}
+
                     {/* Notification bell */}
                     <button id="notif-btn" className="notif-btn" title="Notifications" aria-label="Notifications">
                         <Bell size={18} />
@@ -113,7 +186,7 @@ export default function App() {
                         <div className="doctor-avatar">A</div>
                         <div>
                             <div className="doctor-name">Dr. A. Mehta</div>
-                            <div className="doctor-role">Neuro Oncologist</div>
+                            <div className="doctor-role">Neuro-Oncology Lead</div>
                         </div>
                     </div>
                 </div>
@@ -168,9 +241,9 @@ export default function App() {
                                 <span className="status-dot" />
                                 <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>System Status</span>
                             </div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>All Systems Operational</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>All AI Modules Operational</div>
 
-                            {SIDEBAR_STATS.map(s => (
+                            {sidebarStats.map(s => (
                                 <div key={s.label} className="sidebar-stat-row">
                                     <span className="sidebar-stat-label">
                                         {s.label === 'Patients' ? '👤 ' : s.label === 'Scans Processed' ? '🖥 ' : '🤖 '}
@@ -182,7 +255,7 @@ export default function App() {
 
                             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
                                 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>⚙ Version</span>
-                                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>2.3.1</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>2.0.0</span>
                             </div>
                         </div>
                     )}
@@ -191,67 +264,57 @@ export default function App() {
                 {/* ── Main Content ─────────────────────────────────────── */}
                 <main className="content">
                     {activeTab === 'dashboard' && (
-                        <Dashboard patient={patient} uploadResult={uploadResult} setPatient={setPatient} />
+                        <Dashboard
+                            patient={patient}
+                            uploadResult={uploadResult}
+                            setPatient={setPatient}
+                            onNavigateTab={setActiveTab}
+                        />
                     )}
                     {activeTab === 'patient' && (
                         <PatientPanel patient={patient} setPatient={setPatient} />
                     )}
                     {activeTab === 'upload' && (
-                        <Upload patient={patient} onResult={handleUploadResult} />
+                        <Upload
+                            patient={patient}
+                            scanHistory={activeHistory}
+                            onResult={handleUploadResult}
+                            onScanResult={handleUploadResult}
+                        />
                     )}
                     {activeTab === 'viewer' && (
                         <Viewer3D volumeData={uploadResult} />
                     )}
                     {activeTab === 'graph' && (
                         <Graph
-                            times={uploadResult?.times || []}
-                            volumes={uploadResult?.volumes || []}
-                            scanHistory={uploadResult?.scanHistory || []}
+                            times={activeTimes}
+                            volumes={activeVolumes}
+                            scanHistory={activeHistory}
                         />
                     )}
                     {activeTab === 'radiomics' && (
-                        <Radiomics data={uploadResult?.radiomics} />
+                        <Radiomics data={activeRadiomics} />
                     )}
                     {activeTab === 'twin' && (
-                        <TwinSimulator times={uploadResult?.times || []} volumes={uploadResult?.volumes || []} />
+                        <TwinSimulator
+                            times={activeTimes}
+                            volumes={activeVolumes}
+                        />
                     )}
                     {activeTab === 'rl' && (
-                        <RLOptimizer times={uploadResult?.times || []} volumes={uploadResult?.volumes || []} />
+                        <RLOptimizer
+                            times={activeTimes}
+                            volumes={activeVolumes}
+                        />
                     )}
                     {activeTab === 'survival' && (
                         <Survival patient={patient} />
                     )}
-                    {(activeTab === 'reports' || activeTab === 'settings') && (
-                        <div className="fade-in">
-                            <div className="section-header">
-                                <div>
-                                    <div className="section-title">{tabLabel}</div>
-                                    <div className="section-subtitle">
-                                        {activeTab === 'reports'
-                                            ? 'Generate and export clinical AI reports'
-                                            : 'Configure platform preferences'}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="card" style={{ textAlign: 'center', padding: 48 }}>
-                                <div style={{ fontSize: 40, marginBottom: 16 }}>
-                                    {activeTab === 'reports' ? '📄' : '⚙️'}
-                                </div>
-                                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                                    {tabLabel} Module
-                                </div>
-                                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                                    Coming soon — use the Dashboard for full analysis capabilities.
-                                </div>
-                                <button
-                                    className="btn btn-primary"
-                                    style={{ marginTop: 20 }}
-                                    onClick={() => setActiveTab('dashboard')}
-                                >
-                                    ← Back to Dashboard
-                                </button>
-                            </div>
-                        </div>
+                    {activeTab === 'reports' && (
+                        <Reports patient={patient} setPatient={setPatient} />
+                    )}
+                    {activeTab === 'settings' && (
+                        <Settings />
                     )}
                 </main>
             </div>

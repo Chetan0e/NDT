@@ -64,6 +64,7 @@ export const uploadMRI = async (files, patientId, scanDate, extractRadiomics = f
     return {
         success: true,
         data: res.data,
+        ...res.data,
         message: `Successfully uploaded ${files.length} file(s)`
     };
 };
@@ -96,12 +97,23 @@ export const simulateTwin = async (times, volumes, days = 60, therapy = 0) => {
 };
 
 export const compareTherapies = async (times, volumes, days = 60) => {
-    const res = await api.post('/compare-therapies', { times, volumes, days });
+    const res = await api.post('/compare-therapies', { 
+        times: times.map(Number), 
+        volumes: volumes.map(Number), 
+        days: Number(days) 
+    });
     return res.data;
 };
 
-export const optimizeTherapy = async (times, volumes, days = 60, useRl = false) => {
-    const res = await api.post('/optimize', { times, volumes, days, use_rl: useRl });
+export const optimizeTherapy = async (times, volumes, days = 60, useRl = false, toxicityBudget = 2.0, rlSteps = 5000) => {
+    const res = await api.post('/optimize', { 
+        times: times.map(Number), 
+        volumes: volumes.map(Number), 
+        days: Number(days), 
+        use_rl: useRl,
+        toxicity_budget: Number(toxicityBudget),
+        rl_steps: Number(rlSteps),
+    });
     return res.data;
 };
 
@@ -112,6 +124,11 @@ export const fusePatientVector = async (radiomics, clinical, genomic) => {
 
 export const interpretFeatures = async (features) => {
     const res = await api.post('/interpret', { features });
+    return res.data;
+};
+
+export const listPatients = async () => {
+    const res = await api.get('/patients');
     return res.data;
 };
 
@@ -129,6 +146,22 @@ export const savePatient = async (data) => {
         patient: res.data,
         message: `Patient ${data.patient_id} saved successfully`
     };
+};
+
+export const updatePatient = async (patientId, data) => {
+    if (!patientId) {
+        throw new APIError('Patient ID is required', 400);
+    }
+    const res = await api.put(`/patient/${encodeURIComponent(patientId)}`, data);
+    return res.data;
+};
+
+export const deletePatient = async (patientId) => {
+    if (!patientId) {
+        throw new APIError('Patient ID is required', 400);
+    }
+    const res = await api.delete(`/patient/${encodeURIComponent(patientId)}`);
+    return res.data;
 };
 
 export const getPatient = async (id) => {
@@ -153,6 +186,17 @@ export const saveScan = async (data) => {
     };
 };
 
+// Demo Seeding & Sample MRI
+export const seedDatabase = async (force = false) => {
+    const res = await api.post('/seed', { force });
+    return res.data;
+};
+
+export const getSampleMRI = async () => {
+    const res = await api.post('/sample/mri');
+    return res.data;
+};
+
 // Survival Analysis Endpoints
 export const predictSurvival = async (params) => {
     const res = await api.post('/survival/predict', params);
@@ -164,9 +208,17 @@ export const getSurvivalReference = async () => {
     return res.data;
 };
 
-// Analytics Endpoints
+// Analytics & Reports Endpoints
 export const getAnalyticsOverview = async () => {
     const res = await api.get('/analytics/overview');
+    return res.data;
+};
+
+export const getPatientReport = async (patientId) => {
+    if (!patientId) {
+        throw new APIError('Patient ID is required for clinical report', 400);
+    }
+    const res = await api.get(`/analytics/patient/${encodeURIComponent(patientId)}/report`);
     return res.data;
 };
 
@@ -186,3 +238,4 @@ export const healthCheck = async () => {
 };
 
 export default api;
+

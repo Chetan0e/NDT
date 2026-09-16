@@ -57,7 +57,7 @@ def analytics_overview(db: Session = Depends(get_db)):
 def patient_report(patient_id: str, db: Session = Depends(get_db)):
     """
     Generates a comprehensive summary report for a single patient.
-    Includes scan history, growth trajectory, risk assessment, and therapy recommendations.
+    Includes scan history, growth trajectory, risk assessment, radiomics, and therapy recommendations.
     """
     patient = db.query(Patient).filter_by(patient_id=patient_id).first()
     if not patient:
@@ -67,16 +67,29 @@ def patient_report(patient_id: str, db: Session = Depends(get_db)):
     therapies = db.query(TherapySimulation).filter_by(patient_id=patient_id).order_by(
         TherapySimulation.created_at.desc()
     ).first()
+    growth_record = db.query(GrowthRecord).filter_by(patient_id=patient_id).order_by(
+        GrowthRecord.created_at.desc()
+    ).first()
 
     # Compute volume trend
     volumes = [s.tumor_volume_cc for s in scans if s.tumor_volume_cc]
     trend_pct = None
+    growth_rate_per_month = None
     if len(volumes) >= 2:
         trend_pct = round((volumes[-1] - volumes[0]) / max(volumes[0], 0.001) * 100, 1)
+        growth_rate_per_month = round((volumes[-1] - volumes[0]) / max(len(volumes) - 1, 1), 2)
 
+    # Get latest radiomics
+    latest_radiomics = None
+    for s in reversed(scans):
+        if s.radiomics:
+            latest_radiomics = s.radiomics
+            break
+
+    from datetime import datetime, timezone
     return {
         "report_type": "full_clinical_summary",
-        "generated_at": "2026-02-22T11:24:20+05:30",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "patient": {
             "patient_id": patient.patient_id,
             "name": patient.name,
@@ -88,8 +101,8 @@ def patient_report(patient_id: str, db: Session = Depends(get_db)):
             "genomics": {
                 "idh_mutation": patient.idh_mutation,
                 "mgmt_methylation": patient.mgmt_methylation,
-                "egfr_amplification": patient.egfr_amplification,
-                "tp53_mutation": patient.tp53_mutation,
+                "egfr_amplification": getattr(patient, "egfr_amplification", False),
+                "tp53_mutation": getattr(patient, "tp53_mutation", False),
             },
         },
         "scan_summary": {
@@ -98,12 +111,36 @@ def patient_report(patient_id: str, db: Session = Depends(get_db)):
             "latest_scan": scans[-1].scan_date if scans else None,
             "latest_volume_cc": volumes[-1] if volumes else None,
             "volume_trend_pct": trend_pct,
+            "growth_rate_cc_per_month": growth_rate_per_month,
+            "scans": [
+                {
+                    "date": s.scan_date,
+                    "volume_cc": s.tumor_volume_cc,
+                    "enhancing_cc": s.enhancing_volume,
+                    "necrotic_cc": s.necrotic_volume,
+                    "edema_cc": s.edema_volume,
+                }
+                for s in scans
+            ],
         },
+        "latest_radiomics": latest_radiomics,
+        "growth_analysis": {
+            "alpha": growth_record.growth_rate_alpha if growth_record else None,
+            "carrying_capacity": growth_record.carrying_capacity if growth_record else None,
+            "predicted_volume_30d": growth_record.predicted_volume_30d if growth_record else None,
+            "predicted_volume_60d": growth_record.predicted_volume_60d if growth_record else None,
+            "predicted_volume_90d": growth_record.predicted_volume_90d if growth_record else None,
+            "growth_label": growth_record.growth_label if growth_record else None,
+        } if growth_record else None,
         "therapy_recommendation": {
             "best_therapy": therapies.best_therapy if therapies else None,
+            "therapy_intensity": therapies.therapy_intensity if therapies else None,
             "predicted_reduction_pct": therapies.volume_reduction_pct if therapies else None,
+            "final_volume": therapies.final_volume if therapies else None,
+            "strategy_comparison": therapies.strategy_comparison if therapies else None,
         } if therapies else None,
     }
+
 
 
 class CohortRequest(BaseModel):

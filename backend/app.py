@@ -16,8 +16,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.utils import get_openapi
 
-from database import init_db
-from routes import upload, predict, patient, features, fusion, twin, rl, survival, analytics
+from database import init_db, SessionLocal, Patient
+from routes import upload, predict, patient, features, fusion, twin, rl, survival, analytics, seed
+from seed_data import seed_database
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,10 +34,21 @@ logger = logging.getLogger("ndt.app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize DB tables and pre-warm any models on startup."""
+    """Initialize DB tables, auto-seed demo cohort if empty, and pre-warm models."""
     logger.info("NeuroDigital Twin starting up...")
     init_db()
     logger.info("Database tables ready.")
+
+    # Auto-seed sample patient cohort if database is empty
+    try:
+        db = SessionLocal()
+        count = db.query(Patient).count()
+        if count == 0:
+            logger.info("Initial empty database detected. Auto-seeding clinical demo cohort...")
+            seed_database(db, force=False)
+        db.close()
+    except Exception as e:
+        logger.warning("Database seeding check failed: %s", e)
 
     # Pre-warm segmentor (loads weights once, not per request)
     try:
@@ -107,6 +119,7 @@ app.include_router(twin.router,     tags=["6 · Digital Twin Simulation"])
 app.include_router(rl.router,       tags=["7 · RL Therapy Optimizer"])
 app.include_router(survival.router, tags=["8 · Survival Prediction"])
 app.include_router(analytics.router,tags=["9 · Analytics & Reporting"])
+app.include_router(seed.router,     tags=["10 · Demo Seeding & Synthetic MRI"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────

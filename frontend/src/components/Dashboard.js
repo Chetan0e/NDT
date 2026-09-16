@@ -347,7 +347,7 @@ function TwinSimChart({ simResult }) {
 // ═══════════════════════════════════════════════════════════════════
 // Main Dashboard
 // ═══════════════════════════════════════════════════════════════════
-export default function Dashboard({ patient, uploadResult, setPatient }) {
+export default function Dashboard({ patient, uploadResult, setPatient, onNavigateTab }) {
     const [prediction, setPrediction] = useState(null);
     const [simResult, setSimResult] = useState(null);
     const [rlResult, setRlResult] = useState(null);
@@ -363,29 +363,42 @@ export default function Dashboard({ patient, uploadResult, setPatient }) {
     const [exporting, setExporting] = useState(false);
     const [realTimeData, setRealTimeData] = useState({ times: [], volumes: [] });
 
-    // Load real patient data when available
+    // Synchronize real patient scans or upload result
     useEffect(() => {
-        if (uploadResult && uploadResult.times && uploadResult.volumes) {
-            setRealTimeData({
-                times: uploadResult.times,
-                volumes: uploadResult.volumes
-            });
-            
-            // Auto-load prediction with real data
+        let t = [];
+        let v = [];
+
+        if (uploadResult?.times && uploadResult?.volumes) {
+            t = uploadResult.times;
+            v = uploadResult.volumes;
+        } else if (patient?.scans && patient.scans.length >= 2) {
+            const scanDates = patient.scans.map(s => new Date(s.scan_date).getTime());
+            const firstDate = scanDates[0];
+            t = scanDates.map(d => Math.round((d - firstDate) / (1000 * 60 * 60 * 24)));
+            v = patient.scans.map(s => s.tumor_volume_cc || (s.tumor_volume_mm3 ? s.tumor_volume_mm3 / 1000.0 : 0));
+        } else if (uploadResult?.volume_cc) {
+            t = [0, 30];
+            v = [uploadResult.volume_cc * 0.85, uploadResult.volume_cc];
+        }
+
+        if (t.length >= 2) {
+            setRealTimeData({ times: t, volumes: v });
+
+            // Auto-load prediction with patient data
             setLoadingPred(true);
-            predictGrowth(uploadResult.times, uploadResult.volumes)
+            predictGrowth(t, v)
                 .then(data => setPrediction(data))
-                .catch(() => { /* backend offline – show placeholder */ })
+                .catch(() => {})
                 .finally(() => setLoadingPred(false));
-                
-            // Auto-run RL recommendation with real data
+
+            // Auto-run RL recommendation
             setLoadingRL(true);
-            optimizeTherapy(uploadResult.times, uploadResult.volumes, 90, false)
+            optimizeTherapy(t, v, 90, false)
                 .then(data => setRlResult(data))
-                .catch(() => { /* show placeholder */ })
+                .catch(() => {})
                 .finally(() => setLoadingRL(false));
         }
-    }, [uploadResult]);
+    }, [uploadResult, patient]);
 
     const handleReanalyze = async () => {
         if (!realTimeData.times.length) return;
@@ -495,17 +508,41 @@ export default function Dashboard({ patient, uploadResult, setPatient }) {
                 <div className="card" style={{ textAlign: 'center', padding: 40, marginBottom: 20 }}>
                     <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
                     <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
-                        No Patient Data Loaded
+                        No Active Patient Selected
                     </div>
                     <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 20 }}>
-                        Please load a patient record or upload MRI data to begin analysis
+                        Select a patient from the clinical directory or load a demo case to begin digital twin simulation.
                     </div>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => {/* Navigate to patient tab */}}
-                    >
-                        Load Patient Data
-                    </button>
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => onNavigateTab && onNavigateTab('patient')}
+                        >
+                            📋 Open Patient Directory
+                        </button>
+                        <button
+                            className="btn btn-outline"
+                            onClick={async () => {
+                                try {
+                                    const { getPatient } = await import('../api');
+                                    const data = await getPatient('NDT-001');
+                                    if (setPatient) {
+                                        setPatient({
+                                            ...data.patient,
+                                            scans: data.scans,
+                                            scan_count: data.scan_count,
+                                            latest_scan: data.latest_scan,
+                                            growth_record: data.growth_record,
+                                        });
+                                    }
+                                } catch {
+                                    if (onNavigateTab) onNavigateTab('patient');
+                                }
+                            }}
+                        >
+                            ⚡ Load Demo Case (NDT-001)
+                        </button>
+                    </div>
                 </div>
             )}
 

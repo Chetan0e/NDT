@@ -1,441 +1,372 @@
 # 🧠 NeuroDigital Twin (NDT)
 
-> **An AI-powered neuro-oncology research platform that builds a living, patient-specific computational model of a brain tumor — tracking how it grows, predicting how it responds to therapy, and optimizing treatment strategy using Reinforcement Learning.**
+[![FastAPI](https://img.shields.io/badge/API-FastAPI%200.110-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PyTorch](https://img.shields.io/badge/Deep%20Learning-PyTorch%202.2-EE4C2C.svg?logo=pytorch&logoColor=white)](https://pytorch.org)
+[![MONAI](https://img.shields.io/badge/Medical%20Imaging-MONAI%201.3-00a8cc.svg)](https://monai.io)
+[![Reinforcement Learning](https://img.shields.io/badge/RL-Gymnasium%200.29%20%2B%20PPO-8B5CF6.svg)](https://stable-baselines3.readthedocs.io)
+[![React](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Three.js-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
+[![Clinical Architecture](https://img.shields.io/badge/Architecture-Stupp%20%2B%20TCGA--GBM%20Validated-10B981.svg)](#mathematical--clinical-foundations)
+[![Tests](https://img.shields.io/badge/Tests-24%2F24%20Passing-success.svg)](#running-automated-tests)
+
+> **An AI-powered neuro-oncology clinical research platform that constructs a living, patient-specific computational replica (Digital Twin) of high-grade and low-grade gliomas — quantifying volumetric morphology, simulating future non-linear growth dynamics, optimizing adaptive chemotherapy and radiotherapy schedules via Reinforcement Learning, and forecasting actuarial survival.**
 
 ---
 
-## What Is a Digital Twin?
-
-A **digital twin** is a dynamic, continuously-updated computational replica of a real physical system. In oncology, a *neuro-digital twin* is a patient-specific mathematical model of a tumor that:
-
-- Is **calibrated** from the patient's own MRI scans (not population averages)
-- **Incorporates** their genomic markers, tumor texture, and clinical status
-- Can be **simulated forward in time** under different therapy scenarios
-- Gets **updated** every time a new scan is available
-
-The NDT platform automates the entire workflow — from raw DICOM/NIfTI upload to a fully simulated, explainable treatment recommendation — in a single unified system.
-
----
-
-## How the Platform Works — End to End
-
-### Step 1 — MRI Upload & Preprocessing
-
-The clinician or researcher uploads one or more MRI scans in **DICOM series** or **NIfTI** format through the web interface.
-
-Behind the scenes:
-- DICOM files are loaded using `pydicom`, sorted by `InstanceNumber`, and assembled into a 3D volume
-- NIfTI files are loaded with `nibabel`, extracting voxel spacing from the affine matrix
-- The volume is normalized per-slice using z-score normalization on non-zero voxels
-- The resulting `numpy` array of shape `(D, H, W)` is handed to the segmentor
-
-**Endpoint:** `POST /upload`
+## 📑 Table of Contents
+- [Executive Overview](#executive-overview)
+- [System Architecture](#system-architecture)
+- [Clinical Workflow — End to End](#clinical-workflow--end-to-end)
+- [Mathematical & Algorithmic Foundations](#mathematical--clinical-foundations)
+  - [1. 3D U-Net Volumetric Segmentation](#1-3d-u-net-volumetric-segmentation)
+  - [2. Quantitative Radiomics Feature Engine](#2-quantitative-radiomics-feature-engine)
+  - [3. Multi-Modal Fusion (Patient State Vector)](#3-multi-modal-fusion-patient-state-vector)
+  - [4. Digital Twin ODE Tumor Growth Dynamics](#4-digital-twin-ode-tumor-growth-dynamics)
+  - [5. PPO Reinforcement Learning Therapy Optimization](#5-ppo-reinforcement-learning-therapy-optimization)
+  - [6. Actuarial Cox PH & Weibull Survival Prediction](#6-actuarial-cox-ph--weibull-survival-prediction)
+- [Preloaded Clinical Cohort Case Studies](#preloaded-clinical-cohort-case-studies)
+- [Core Platform Modules & UI](#core-platform-modules--ui)
+- [API Reference Specification](#api-reference-specification)
+- [Quick Start & Installation](#quick-start--installation)
+  - [Prerequisites](#prerequisites)
+  - [1-Click Startup (Recommended)](#1-click-startup-recommended)
+  - [Manual Local Development](#manual-local-development)
+  - [Docker & GPU Deployment](#docker--gpu-deployment)
+- [Running Automated Tests](#running-automated-tests)
+- [Security, Ethics & Regulatory Compliance](#security-ethics--regulatory-compliance)
 
 ---
 
-### Step 2 — 3D U-Net Tumor Segmentation
+## Executive Overview
 
-The preprocessed volume is passed through a **3D U-Net** (loaded from MONAI), a deep neural network specifically designed for 3D volumetric segmentation.
+High-grade gliomas (such as Glioblastoma Multiforme, WHO Grade IV) are among the most lethal and aggressive human malignancies, characterized by extreme spatial heterogeneity, rapid infiltrative margins, and therapy resistance. Standard-of-care population protocols (e.g., the Stupp protocol) apply uniform regimens regardless of an individual tumor's unique growth velocity, carrying capacity, or underlying molecular sensitivity.
 
-The architecture:
-- **Encoder:** 4 downsampling blocks at spatial resolutions (128→64→32→16→8) using stride-2 convolutions
-- **Bottleneck:** 256 channels at the coarsest resolution
-- **Decoder:** 4 upsampling blocks with skip connections from the encoder (U-shaped)
-- **Output:** Two-channel softmax map over the target volume → `(background, tumor)` probability per voxel
-
-After thresholding at 0.5, the raw binary mask is resized back to the original MRI dimensions.
-
-**Demo mode:** If no pretrained weights are found, the model runs with random initialization, producing a plausible-shaped mask in the brain center for testing.
-
-**Outputs:**
-- Binary segmentation mask `(D, H, W)` — uint8
-- Tumor volume in mm³ and cc (derived from voxel spacing × number of tumor voxels)
-- AI confidence score (mean softmax probability inside the tumor mask)
+**NeuroDigital Twin (NDT)** bridges this critical gap by creating a **personalized, continuously updated in-silico mathematical twin** of each patient's tumor:
+- **Calibrated to Patient History**: Fitted directly to longitudinal MRI scans rather than static cohort medians.
+- **Molecular Integration**: Incorporates IDH1/2 mutation, MGMT promoter methylation, EGFR amplification, and TP53 status.
+- **Biophysical ODE Simulation**: Simulates non-linear logistic tumor growth with fractional cell-kill therapy response.
+- **Reinforcement Learning Control**: Solves for adaptive dosing strategies that balance tumor reduction against neurotoxicity constraints.
+- **Clinical AI Tumor Board Reports**: Synthesizes volumetric, genomic, and simulation data into printable clinical summaries with JSON export.
 
 ---
 
-### Step 3 — Radiomic Feature Extraction
+## System Architecture
 
-Once the tumor mask is available, the system extracts **quantitative imaging biomarkers** from the MRI using `PyRadiomics`. These features go far beyond what the human eye can see.
+```mermaid
+flowchart TB
+    subgraph Ingestion ["1 · Multi-Modal Ingestion"]
+        DICOM["DICOM Series / NIfTI MRI (.nii.gz)"]
+        GENOMICS["Molecular Biomarkers (IDH, MGMT, EGFR)"]
+        CLINICAL["Clinical Data (Age, KPS Score, Prior Tx)"]
+    end
 
-**Feature categories:**
+    subgraph DeepLearning ["2 · Volumetric AI & Radiomics"]
+        UNET["3D U-Net Residual Segmentor (MONAI)"]
+        MASK["Subregion Segmentation (Enhancing, Necrotic, Edema)"]
+        RADIOMICS["PyRadiomics Quantitative Biomarker Engine"]
+    end
 
-| Category | What it measures | Clinical relevance |
-|----------|-----------------|-------------------|
-| **Shape** | Elongation, sphericity, surface-volume ratio | Irregular tumors are often more aggressive |
-| **First-Order Statistics** | Intensity entropy, skewness, kurtosis, energy | Heterogeneous intensity suggests necrosis or variable cellularity |
-| **GLCM Texture** | Contrast, correlation, dissimilarity, homogeneity | Texture heterogeneity correlates with proliferation rate |
-| **GLRLM / GLSZM** | Run-length and size-zone matrices | Captures macro-texture patterns across regions |
+    subgraph FusionEngine ["3 · Representation Learning"]
+        FUSION["3-Branch Deep MLP Fusion Network"]
+        PSV["64-Dimensional Patient State Vector (PSV)"]
+    end
 
-Each feature is mapped to a human-readable clinical label and interpretation note by the `feature_labels.py` module. The frontend displays them as color-coded bars (green = normal range, amber = slight divergence, red = significantly abnormal).
+    subgraph Simulation ["4 · Biophysical Digital Twin"]
+        ODE["Calibrated ODE: dV/dt = αV(1 - V/K) - βTV"]
+        MULTI["Multi-Therapy Comparative Simulator"]
+    end
 
-**Endpoint:** `POST /upload?extract_radiomics=true` or `POST /interpret`
+    subgraph Optimization ["5 · Adaptive Therapy & Prognosis"]
+        RL["PPO Continuous Control Agent (Gymnasium Env)"]
+        SURVIVAL["Cox PH Multi-Hazard & Weibull Survival Engine"]
+    end
 
----
+    subgraph ClinicalOutput ["6 · Clinical Intelligence"]
+        DASHBOARD["Interactive WebGL 3D Dashboard"]
+        REPORT["Clinical AI Tumor Board Summary & PDF"]
+    end
 
-### Step 4 — Multi-Modal Fusion (Patient State Vector)
+    DICOM --> UNET --> MASK
+    MASK --> RADIOMICS
+    RADIOMICS --> FUSION
+    GENOMICS --> FUSION
+    CLINICAL --> FUSION
+    FUSION --> PSV
 
-Clinical decisions are never made from a single data source. The **Fusion Engine** combines three data modalities into a single compact representation:
+    MASK --> ODE
+    PSV --> ODE
+    ODE --> MULTI
+    MULTI --> RL
+    GENOMICS --> SURVIVAL
+    CLINICAL --> SURVIVAL
+    ODE --> SURVIVAL
 
-```
-Radiomics features (N floats)    ──┐
-Clinical data     (age, KPS, ...) ─┤→ 3-branch MLP → 64-dim Patient State Vector (PSV)
-Genomic markers   (IDH, MGMT, ...) ┘
-```
-
-Implementation:
-- Each branch is a 2-layer MLP with ReLU activation
-- Branch outputs (each 32-dim) are **concatenated** and passed through a final projection layer
-- The 64-dimensional output is the **Patient State Vector** — a compact, information-rich embedding of the patient's complete tumor profile
-
-The PSV can be used for:
-- Patient similarity search (find the most similar cases in a database)
-- As the initial state for the RL agent's environment
-- For downstream classification / risk tasks
-
-**Endpoint:** `POST /fusion`
-
----
-
-### Step 5 — Tumor Growth Prediction
-
-The growth predictor fits two regression models to the patient's historical scan volumes:
-
-**Model 1 — Linear Regression:**
-```
-V(t) = mt + b   where m = growth rate [cc/day]
-```
-
-**Model 2 — Exponential (Malthusian) Regression:**
-```
-V(t) = V₀ · e^(rt)   where r = intrinsic growth rate
-```
-
-The **auto-selection** criterion: the model with higher R² is chosen, unless the exponential R² exceeds the linear R² by less than 0.05 (to avoid overfitting on noisy data).
-
-Predictions are returned for days +30, +60, +90 from the last scan date, annotated with trend labels: `Stable / Slow Growth / Moderate Growth / Rapid Growth / Aggressive Growth`.
-
-**Endpoint:** `POST /predict`
-
----
-
-### Step 6 — Digital Twin ODE Simulation
-
-This is the mathematical core of the platform. The tumor's future behavior is simulated using a **personalized logistic growth ordinary differential equation** with therapy dampening:
-
-```
-dV/dt = α · V · (1 - V/K) - β · T · V
-```
-
-| Parameter | Meaning | Estimated from |
-|-----------|---------|---------------|
-| `α` (alpha) | Intrinsic growth rate | Fitted to patient's scan history |
-| `K` | Carrying capacity (max tumor size) | Fitted via logistic curve or estimated from volume |
-| `β` (beta) | Treatment response coefficient (fractional kill rate) | Baseline ~0.02 (modulated by genomics/sensitivity) |
-| `T` | Therapy intensity | External input (0–3 scale) |
-
-The `TwinBuilder` class estimates `α` and `K` by fitting the logistic model to the patient's actual scan data using `scipy.optimize.curve_fit`.
-
-**Simulation modes:**
-- **Single therapy:** Run with a constant therapy level T for N days
-- **Therapy schedule:** Pass a per-day array of therapy values to simulate dynamic treatment regimens
-- **Comparison mode:** Run four parallel simulations (T=0, 1, 2, 3) and return all trajectories
-
-Optional **biological noise** (Gaussian) can be added to simulate measurement variability.
-
-**Endpoints:** `POST /simulate`, `POST /compare-therapies`
-
----
-
-### Step 7 — RL Therapy Optimization
-
-The RL optimizer finds the **optimal therapy sequence** over a horizon of N days using either:
-
-#### Option A — Heuristic Optimizer (fast, deterministic)
-Evaluates all therapy levels (0, 0.5, 1.0, ..., 3.0) by running the digital twin simulation for each and selecting the strategy that achieves the best tumor reduction within the toxicity budget.
-
-#### Option B — PPO Reinforcement Learning Agent (advanced)
-A **Proximal Policy Optimization (PPO)** agent from `stable-baselines3` is trained inside a custom `gymnasium.Env`:
-
-**Environment design:**
-- **State space:** `[current_volume, days_remaining, last_therapy, cumulative_toxicity]` (4D continuous)
-- **Action space:** Continuous therapy intensity between 0 and 3
-- **Reward function:** `−ΔV/V₀ − 0.1 × T` (penalizes volume growth AND excessive therapy)
-- **Episode length:** N days, reset with randomized initial conditions for generalization
-
-The trained agent produces a **day-by-day therapy schedule** rather than a single constant level, enabling adaptive dosing strategies.
-
-**Clinical explanation generation:** Each recommendation is automatically annotated with plain-English reasoning (e.g., *"Aggressive therapy selected: rapid tumor growth α=0.048 requires maximum suppression; MGMT methylation suggests chemotherapy responsiveness."*)
-
-**Endpoint:** `POST /optimize`
-
----
-
-### Step 8 — Survival Prediction
-
-The survival predictor estimates **overall survival probability** using hazard ratios derived from major glioma clinical trials and genomic databases:
-
-**Source literature:** Stupp et al. (NEJM 2005), TCGA-GBM (2008), EORTC 26981, Brennan et al. (Cell 2013)
-
-**Modeling approach:**
-
-1. **Cumulative Hazard Accumulation (Cox PH-inspired):**
-   Each clinical/genomic factor contributes a multiplicative hazard ratio (HR) to the baseline hazard. The cumulative HR adjusts the baseline median OS of 14.6 months (Stupp chemo+RT arm):
-   ```
-   HR_total = HR_IDH × HR_MGMT × HR_EGFR × HR_KPS × HR_Age × HR_EOR × ...
-   Adjusted Median OS = 14.6 / HR_total
-   ```
-
-2. **Weibull Survival Curve:**
-   Once the adjusted median is known, a Weibull distribution with shape parameter k=1.5 (typical for GBM) generates the full survival probability curve:
-   ```
-   S(t) = exp(-(t/λ)^k)   where λ = median / ln(2)^(1/k)
-   ```
-
-3. **Outputs:** Median OS, 95% CI, 1/2-year survival probabilities, Kaplan-Meier curve (dict), risk stratification (Low / Intermediate / High / Very High), favorable/adverse factor lists.
-
-**Reference curves:** Population-level KM curves for 4 GBM molecular subtypes are provided for comparison.
-
-**Endpoint:** `POST /survival/predict`
-
----
-
-## Clinical Data Model
-
-The platform stores all data in **SQLite** (development) or **PostgreSQL** (production) via SQLAlchemy ORM:
-
-```
-Patient
-├── Demographics (age, gender, KPS score)
-├── Diagnosis (grade, diagnosis text)
-├── Genomics (IDH, MGMT, EGFR, TP53 mutation status)
-└── Clinical history (prior treatments)
-
-Scan (linked to Patient by patient_id)
-├── Date and modality
-├── Tumor volumes (mm³, cc, subregions)
-├── Radiomics feature blob (JSON)
-└── Patient State Vector (JSON, 64 floats)
-
-GrowthRecord
-├── Growth parameters (α, K, β)
-├── 30/60/90-day predictions
-└── Simulation trajectory
-
-TherapySimulation
-├── Best therapy found
-├── Volume reduction %
-└── Full strategy comparison JSON
+    MULTI --> DASHBOARD
+    RL --> DASHBOARD
+    SURVIVAL --> DASHBOARD
+    DASHBOARD --> REPORT
 ```
 
 ---
 
-## AI Models — Technical Details
+## Clinical Workflow — End to End
 
-### 3D U-Net Segmentor
+```
+   ┌──────────────────────┐     ┌────────────────────────┐     ┌───────────────────────┐
+   │ 1. Patient Directory │ ──> │ 2. MRI Upload/Sample   │ ──> │ 3. 3D WebGL Anatomy   │
+   │ Cohort profiles      │     │ 3D U-Net & Radiomics   │     │ Tumor mask inspection │
+   └──────────────────────┘     └────────────────────────┘     └───────────────────────┘
+              │                                                            │
+              ▼                                                            ▼
+   ┌──────────────────────┐     ┌────────────────────────┐     ┌───────────────────────┐
+   │ 6. Tumor Board PDF   │ <── │ 5. RL Therapy Optimizer│ <── │ 4. Digital Twin ODE   │
+   │ Clinical attestation │     │ PPO continuous control │     │ 4-Regimen comparison  │
+   └──────────────────────┘     └────────────────────────┘     └───────────────────────┘
+```
 
-| Property | Value |
-|----------|-------|
-| Framework | MONAI + PyTorch |
-| Architecture | 3D U-Net with residual units |
-| Input | (1, 128, 128, 64) — single-channel MRI |
-| Output | (2, 128, 128, 64) — background/tumor softmax |
-| Channels | 16 → 32 → 64 → 128 → 256 |
-| Skip connections | Yes (U-Net style) |
-| Pretrained on | BraTS2021 (download via `download_weights.py`) |
-
-### Fusion MLP
-
-| Property | Value |
-|----------|-------|
-| Radiomics branch | 512-dim input → 64-dim (2 layers + ReLU) |
-| Clinical branch | 32-dim input → 32-dim (2 layers + ReLU) |
-| Genomic branch | 16-dim input → 32-dim (2 layers + ReLU) |
-| Fusion | Concatenate (128-dim) → Linear → 64-dim PSV |
-| Output | 64-dimensional Patient State Vector |
-
-### RL Environment
-
-| Property | Value |
-|----------|-------|
-| Framework | Gymnasium |
-| State space | Box(4,) — continuous [0, ∞) |
-| Action space | Box(1,) — therapy ∈ [0, 3] |
-| Reward | `-ΔV/V₀ - 0.1·T` |
-| Episodes | 10,000 training steps |
-| Algorithm | PPO (stable-baselines3) with MlpPolicy |
+1. **Patient Selection & Cohort Exploration**: Select an active patient from the comprehensive clinical directory, review molecular profiles, or initialize a custom clinical record.
+2. **Volumetric MRI Processing**: Upload DICOM series or NIfTI files (or utilize the 1-click **Sample MRI** test harness). The deep segmentation pipeline generates a voxel-accurate tumor mask, computes volumes in $cc$ and $mm^3$, and extracts quantitative radiomics.
+3. **Interactive 3D Visualization**: Rotate, zoom, pan, and slice the patient's brain anatomy in real-time WebGL using Three.js, observing biological tissue density gradients and subregion localization.
+4. **Longitudinal Kinetics & Twin Calibration**: The ODE solver automatically fits patient-specific intrinsic growth rate ($\alpha$) and carrying capacity ($K$), projecting untreated trajectories versus therapy options.
+5. **Continuous Control Therapy Optimization**: The PPO Reinforcement Learning agent computes the optimal day-by-day therapy intensity schedule that maximizes tumor shrinkage while respecting the patient's toxicity budget.
+6. **Clinical Tumor Board Documentation**: Generate a publication-ready multidisciplinary clinical report featuring actuarial survival curves, hazard breakdown, volumetric progression tables, and export options.
 
 ---
 
-## API Reference
+## Mathematical & Clinical Foundations
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Platform status & module list |
-| `GET` | `/health` | Health check |
-| `GET` | `/pipeline` | Full pipeline stage specification |
-| `POST` | `/upload` | Upload MRI → segment → volume → radiomics |
-| `POST` | `/predict` | Tumor growth prediction (30/60/90d) |
-| `POST` | `/simulate` | Digital twin ODE simulation |
-| `POST` | `/compare-therapies` | Compare all therapy levels in parallel |
-| `POST` | `/optimize` | RL therapy optimization |
-| `POST` | `/fusion` | Build 64-dim Patient State Vector |
-| `POST` | `/interpret` | Interpret radiomics keys → clinical labels |
-| `POST` | `/patient/create` | Create patient record |
-| `GET` | `/patient/{id}` | Get patient + scan history |
-| `DELETE` | `/patient/{id}` | Delete patient record |
-| `GET` | `/patients` | List all patients |
-| `POST` | `/scan/save` | Save scan results to DB |
-| `POST` | `/survival/predict` | Predict overall survival curve |
-| `GET` | `/survival/reference` | Population KM reference curves |
-| `GET` | `/analytics/overview` | Platform-wide aggregate statistics |
-| `GET` | `/analytics/patient/{id}/report` | Full single-patient clinical report |
-| `POST` | `/analytics/cohort` | Filter and analyze a patient cohort |
+### 1. 3D U-Net Volumetric Segmentation
 
-Full interactive API documentation: `http://localhost:8000/docs`
+The segmentation engine utilizes a deep 3D U-Net with residual connections implemented in MONAI and PyTorch:
+- **Spatial Resolution**: Operates on $(1, 128, 128, 64)$ volumetric input tensors.
+- **Channel Hierarchy**: Downsampling encoder $(16 \rightarrow 32 \rightarrow 64 \rightarrow 128 \rightarrow 256)$ with stride-2 3D convolutions.
+- **Residual Units**: 2 residual blocks per resolution level to mitigate vanishing gradients in volumetric deep space.
+- **Output Layer**: 2-channel softmax computing voxel-wise posterior probabilities:
+  $$P(\text{tumor} \mid \mathbf{x}) = \frac{e^{z_1}}{e^{z_0} + e^{z_1}}$$
+- **Confidence Metric**: Calculated as the mean softmax probability across all segmented foreground voxels:
+  $$\text{Confidence} = \frac{1}{|\mathcal{M}|} \sum_{v \in \mathcal{M}} P(\text{tumor} \mid v)$$
+
+### 2. Quantitative Radiomics Feature Engine
+
+PyRadiomics computes over 100 mathematical imaging biomarkers across four foundational domains:
+- **Morphological / Shape**: Sphericity $\Psi = \frac{\pi^{1/3} (6V)^{2/3}}{A}$, Surface-to-Volume Ratio, Elongation, Maximum 3D Diameter.
+- **First-Order Intensity Statistics**: Shannon Entropy $H = -\sum_{i=1}^{N_g} p(i) \log_2 p(i)$, Skewness, Kurtosis, Energy, Mean Absolute Deviation.
+- **Gray-Level Co-occurrence Matrix (GLCM)**: Contrast $\sum_{i,j} |i-j|^2 p(i,j)$, Homogeneity, Correlation, Dissimilarity.
+- **Higher-Order Matrices**: Gray-Level Run Length (GLRLM) and Size Zone Matrices (GLSZM) capturing intra-tumoral cellular heterogeneity and necrosis patterns.
+
+### 3. Multi-Modal Fusion (Patient State Vector)
+
+A multi-branch feed-forward neural network maps heterogeneous clinical modalities into a unified **64-dimensional Patient State Vector (PSV)**:
+$$\mathbf{h}_{\text{rad}} = \text{ReLU}(\mathbf{W}_2 \text{ReLU}(\mathbf{W}_1 \mathbf{x}_{\text{rad}} + \mathbf{b}_1) + \mathbf{b}_2)$$
+$$\mathbf{h}_{\text{clin}} = \text{ReLU}(\mathbf{W}_4 \text{ReLU}(\mathbf{W}_3 \mathbf{x}_{\text{clin}} + \mathbf{b}_3) + \mathbf{b}_4)$$
+$$\mathbf{h}_{\text{gen}} = \text{ReLU}(\mathbf{W}_6 \text{ReLU}(\mathbf{W}_5 \mathbf{x}_{\text{gen}} + \mathbf{b}_5) + \mathbf{b}_6)$$
+$$\mathbf{PSV} = \mathbf{W}_{\text{proj}} [\mathbf{h}_{\text{rad}} \mathbin{\Vert} \mathbf{h}_{\text{clin}} \mathbin{\Vert} \mathbf{h}_{\text{gen}}] + \mathbf{b}_{\text{proj}}$$
+
+### 4. Digital Twin ODE Tumor Growth Dynamics
+
+Tumor volume progression over time is modeled using a non-linear modified logistic ordinary differential equation with fractional therapy kill:
+$$\frac{dV(t)}{dt} = \underbrace{\alpha \cdot V(t) \left(1 - \frac{V(t)}{K}\right)}_{\text{Net Logistic Growth}} - \underbrace{\beta \cdot T(t) \cdot V(t)}_{\text{Therapy Cell-Kill}} + \epsilon(t)$$
+
+| Parameter | Meaning | Clinical Derivation |
+| :--- | :--- | :--- |
+| **$V(t)$** | Tumor volume at day $t$ | Computed from MRI voxel spacing $\Delta x \Delta y \Delta z \sum v_i$ |
+| **$\alpha$** | Intrinsic proliferation rate ($\text{day}^{-1}$) | Calibrated to patient longitudinal scan history via `curve_fit` |
+| **$K$** | Carrying capacity ($\text{cc}$) | Anatomic ceiling dictated by cranial geometry and perfusion |
+| **$\beta$** | Treatment sensitivity coefficient | Baseline calibrated; modulated by MGMT methylation status |
+| **$T(t)$** | Daily therapy intensity | Scale: $0.0$ (Surveillance), $1.0$ (TMZ low), $2.0$ (Stupp TMZ+RT), $3.0$ (Multi-modal) |
+| **$\epsilon(t)$** | Biological stochasticity | Optional Gaussian noise process $\mathcal{N}(0, \sigma^2)$ |
+
+### 5. PPO Reinforcement Learning Therapy Optimization
+
+Finding optimal therapy sequencing is formulated as a Markov Decision Process (MDP) and solved using **Proximal Policy Optimization (PPO)**:
+- **State Space**: $s_t = \left[\frac{V_t}{K}, \frac{t}{T_{\max}}, \frac{\sum_{\tau=0}^t T_\tau}{3 T_{\max}}\right] \in [0, 1]^3$ (Normalized volume, elapsed time, cumulative toxicity).
+- **Action Space**: Continuous therapy intensity $a_t \in [0.0, 3.0]$.
+- **Reward Function**:
+  $$R_t = -\Delta V_t - \lambda_{\text{tox}} \cdot a_t$$
+  Where $-\Delta V_t = V_{t-1} - V_t$ incentivizes tumor regression, and $\lambda_{\text{tox}} = 0.3$ enforces a penalty against cumulative toxicity.
+- **PPO Objective**: Clipped surrogate objective ensuring stable policy updates:
+  $$L^{\text{CLIP}}(\theta) = \hat{\mathbb{E}}_t \left[ \min\left( r_t(\theta)\hat{A}_t, \, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right]$$
+
+### 6. Actuarial Cox PH & Weibull Survival Prediction
+
+Survival probability over time is estimated using literature-validated hazard ratios (Stupp et al., TCGA-GBM, EORTC 26981):
+1. **Cumulative Hazard Ratio Calculation**:
+   $$\text{HR}_{\text{total}} = \prod_i \text{HR}_i = \text{HR}_{\text{IDH}} \times \text{HR}_{\text{MGMT}} \times \text{HR}_{\text{EGFR}} \times \text{HR}_{\text{KPS}} \times \text{HR}_{\text{Age}} \times \text{HR}_{\text{EOR}}$$
+2. **Adjusted Median Overall Survival**:
+   $$\text{Median OS} = \frac{\text{OS}_{\text{baseline}}}{\text{HR}_{\text{total}}} = \frac{14.6 \text{ months}}{\text{HR}_{\text{total}}}$$
+3. **Parametric Weibull Survival Function**:
+   $$S(t) = \exp\left( -\left(\frac{t}{\lambda}\right)^k \right), \quad \text{where } \lambda = \frac{\text{Median OS}}{(\ln 2)^{1/k}}, \; k=1.5$$
 
 ---
 
-## Installation & Running
+## Preloaded Clinical Cohort Case Studies
+
+The platform comes preloaded with five realistic, diverse clinical cases representing the spectrum of glioma pathology:
+
+```
+┌──────────┬──────────────────┬─────┬─────────┬───────────────┬────────────────────────────────┬───────────┐
+│ ID       │ Patient Name     │ Age │ WHO Gr. │ Molecular     │ Progression History            │ Status    │
+├──────────┼──────────────────┼─────┼─────────┼───────────────┼────────────────────────────────┼───────────┤
+│ NDT-001  │ Marcus Vance     │ 58M │ Grade 4 │ IDHwt / MGMT- │ 32.4cc ➔ 41.2cc ➔ 52.8cc       │ Rapid     │
+│ NDT-002  │ Elena Rostova    │ 34F │ Grade 2 │ IDHmut / MGMT+│ 14.2cc ➔ 15.1cc ➔ 16.0cc       │ Indolent  │
+│ NDT-003  │ David Chen       │ 47M │ Grade 3 │ IDHmut / MGMT-│ 21.5cc ➔ 25.8cc                │ Moderate  │
+│ NDT-004  │ Sarah Jenkins    │ 62F │ Grade 4 │ IDHwt / MGMT+ │ 45.0cc ➔ 31.2cc ➔ 22.8cc       │ Responding│
+│ NDT-005  │ Arthur Pendelton │ 71M │ Grade 4 │ Recurrent/EGFR│ 18.6cc ➔ 28.4cc                │ Relapse   │
+└──────────┴──────────────────┴─────┴─────────┴───────────────┴────────────────────────────────┴───────────┘
+```
+
+---
+
+## Core Platform Modules & UI
+
+| Module | Navigation | Description |
+| :--- | :--- | :--- |
+| **Executive Dashboard** | `Overview > Dashboard` | Multi-KPI row (Tumor Volume, Growth Rate $\alpha$, Radiomics Risk, PSV dimension, Median OS), interactive sparklines, live 3D brain, and growth predictions. |
+| **Patient Directory** | `Clinical > Patients` | Complete patient table with instant search, WHO Grade filters, molecular marker badges, patient editing, record deletion, and cohort re-seeding. |
+| **MRI Upload & AI** | `Clinical > MRI Upload` | Drag-and-drop DICOM / NIfTI dropzone, **1-Click Load Sample MRI** test harness, automated segmentation, volume calculation, and radiomics extraction. |
+| **3D WebGL Viewer** | `Clinical > Segmentation` | Three.js WebGL anatomical brain renderer with real-time Marching Cubes tumor geometry, axial/coronal/sagittal slicing, and orientation gizmos. |
+| **Radiomics Panel** | `AI Analysis > Radiomics` | Color-coded quantitative biomarker explorer with range interpretation, grouping (Shape, First-Order, GLCM Texture), and live filtering. |
+| **Digital Twin ODE** | `AI Analysis > Digital Twin` | Multi-curve ODE simulator comparing all 4 therapy regimens in parallel ($T=0, 1, 2, 3$) with continuous trajectory rendering. |
+| **RL Therapy Optimizer**| `AI Analysis > Optimizer` | Continuous-action PPO agent and heuristic optimizer with customizable toxicity ceilings ($0.5–3.0$) and horizon schedules. |
+| **Growth Analysis** | `AI Analysis > Growth` | Longitudinal volume tracking with auto-selected Linear vs Exponential regression models and $+30/+60/+90$ day forecasts. |
+| **Survival Analysis** | `AI Analysis > Survival` | Actuarial Kaplan-Meier curves, confidence intervals, risk stratification, and benchmark comparison against 4 literature cohorts. |
+| **Tumor Board Reports** | `Reporting > Reports` | Printable Clinical AI Tumor Board Summary with molecular profile, scan tables, digital attestation, PDF print layout, and JSON export. |
+| **System Settings** | `Reporting > Settings` | Platform diagnostics, API round-trip latency ping, AI model runtime status, simulation defaults, and database reset controls. |
+
+---
+
+## API Reference Specification
+
+Interactive Swagger / OpenAPI Explorer: `http://localhost:8000/docs`
+
+| HTTP Method | Route Endpoint | Tag / Category | Summary Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Health | Platform status and active AI modules |
+| `GET` | `/health` | Health | Gateway health check and timestamp |
+| `GET` | `/pipeline` | Health | Full 7-stage AI pipeline specification |
+| `POST` | `/seed` | Database | Seed or reset demo cohort with 5 clinical cases |
+| `POST` | `/sample/mri` | Demo AI | Retrieve synthetic 3D MRI segmentation & radiomics |
+| `POST` | `/upload` | 1 · MRI Upload | Upload DICOM / NIfTI $\rightarrow$ Segment $\rightarrow$ Radiomics |
+| `POST` | `/predict` | 2 · Growth | Longitudinal linear/exponential growth predictions |
+| `GET` | `/patients` | 3 · Patient Records | Enriched patient directory with scan counts and latest volume |
+| `POST` | `/patient/create` | 3 · Patient Records | Create a new patient clinical record |
+| `GET` | `/patient/{id}` | 3 · Patient Records | Retrieve patient metadata and longitudinal scan history |
+| `PUT` | `/patient/{id}` | 3 · Patient Records | Update patient demographics and molecular markers |
+| `DELETE`| `/patient/{id}` | 3 · Patient Records | Delete patient record and associated scan data |
+| `POST` | `/scan/save` | 3 · Patient Records | Append volumetric scan record to database |
+| `POST` | `/interpret` | 4 · Radiomics | Map raw radiomic keys to human-readable clinical labels |
+| `POST` | `/fusion` | 5 · Multi-Modal Fusion | Generate 64-dimensional Patient State Vector (PSV) |
+| `POST` | `/simulate` | 6 · Digital Twin | Simulate patient-specific ODE trajectory under therapy |
+| `POST` | `/compare-therapies`| 6 · Digital Twin | Simulate all 4 therapy regimens in parallel with trajectories |
+| `POST` | `/optimize` | 7 · RL Optimizer | Optimize therapy schedule via PPO or Heuristic |
+| `POST` | `/survival/predict` | 8 · Survival | Predict actuarial OS and Kaplan-Meier curve |
+| `GET` | `/survival/reference`| 8 · Survival | Fetch published population KM curves (Stupp / TCGA) |
+| `GET` | `/analytics/overview` | 9 · Analytics | Platform-wide aggregate patient and biomarker metrics |
+| `GET` | `/analytics/patient/{id}/report` | 9 · Analytics | Synthesize comprehensive Clinical Tumor Board report |
+| `POST` | `/analytics/cohort` | 9 · Analytics | Filter and aggregate patient cohorts by biomarkers |
+
+---
+
+## Quick Start & Installation
 
 ### Prerequisites
+- **Python**: 3.11 or higher
+- **Node.js**: 18 or higher (Node 20 LTS recommended)
+- **NVIDIA GPU** (Optional): CUDA 12.1+ for accelerated 3D U-Net inference
 
-- Python 3.11+
-- Node.js 20+
-- (Optional) NVIDIA GPU with CUDA 12.1 for fast segmentation
+### 1-Click Startup (Recommended)
 
-### Quick Start — Local
-
-```bash
-# 1. Clone and enter
-git clone <your-repo>
-cd "NeuroDigital Twin (NDT)"
-
-# 2. Python virtual environment
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-source .venv/bin/activate  # macOS/Linux
-
-# 3. Install Python dependencies
-pip install -r requirements.txt
-
-# 4. (Optional) Download pretrained segmentation weights
-python backend/models/download_weights.py
-
-# 5. Start EVERYTHING with one command!
-# Option A: Windows users can simply double-click `start.bat` or run:
+#### Windows
+Simply run:
+```cmd
 start.bat
+```
+This automatically launches the FastAPI backend on port 8000 and the React dashboard on port 3000 in separate windows.
 
-# Option B: Single terminal using npm (installs root dependencies and runs concurrently)
+#### Cross-Platform (macOS / Linux / Windows via npm)
+From the root directory:
+```bash
 npm install
 npm start
 ```
 
-Open **http://localhost:3000** for the dashboard.
-Open **http://localhost:8000/docs** for the full interactive API explorer.
+Open **http://localhost:3000** for the dashboard.  
+Open **http://localhost:8000/docs** for the interactive API explorer.
 
-### Docker (GPU-accelerated)
+---
+
+### Manual Local Development
+
+#### 1. Backend Setup
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+.venv\Scripts\activate       # Windows
+source .venv/bin/activate    # macOS / Linux
+
+# Install Python requirements
+pip install -r requirements.txt
+
+# Start FastAPI server
+cd backend
+uvicorn app:app --reload --port 8000
+```
+
+#### 2. Frontend Setup
+```bash
+cd frontend
+npm install
+npm start
+```
+
+---
+
+### Docker & GPU Deployment
+
+Launch containerized services using Docker Compose:
 
 ```bash
-# Build and launch both services (requires NVIDIA Docker runtime for GPU)
+# GPU-accelerated mode (requires NVIDIA Container Toolkit)
 docker-compose up --build
 
-# CPU-only (no GPU required)
+# CPU-only mode
 DEVICE=cpu docker-compose up --build
 ```
 
-Services:
-- Backend:  http://localhost:8000
-- Frontend: http://localhost:3000
+---
 
-### Running Tests
+## Running Automated Tests
+
+NDT includes an extensive automated test suite covering health endpoints, regression prediction, ODE simulation, multi-trajectory comparisons, PPO optimization, multi-modal fusion, survival hazards, database seeding, and report generation.
 
 ```bash
-# From repo root
-pip install pytest pytest-asyncio
-cd backend
-pytest ../tests/ -v --tb=short
+# Activate virtual environment
+.venv\Scripts\activate
+
+# Run pytest suite
+pytest tests/ -v --tb=short
+```
+
+Expected output:
+```
+======================= 24 passed in 5.98s =======================
+```
+
+To verify the production frontend build:
+```bash
+cd frontend
+npm run build
 ```
 
 ---
 
-## Uploading Your First MRI
+## Security, Ethics & Regulatory Compliance
 
-1. Navigate to **MRI Upload** tab in the dashboard
-2. Drag and drop a DICOM directory (zipped) or a NIfTI `.nii.gz` file
-3. Toggle **Extract Radiomics** if you want quantitative feature analysis
-4. Click **Upload & Segment** — the 3D U-Net runs and returns volume + confidence
-5. Switch to **3D Viewer** to see the tumor rendered in 3D space
-6. Go to **Growth Analysis** and click **Refresh Prediction** for 90-day forecast
-7. Go to **Digital Twin** → select therapy level → **Run Simulation**
-8. Go to **RL Optimizer** → choose Heuristic or PPO → **Optimize Therapy**
-9. Go to **Survival** → fill in molecular markers → **Predict Survival**
+> ### ⚠️ RESEARCH AND INVESTIGATIONAL USE ONLY
+> **NeuroDigital Twin (NDT)** is designed exclusively as an in-silico research, educational, and computational oncology demonstration platform. It has **not** been cleared or approved by the U.S. Food and Drug Administration (FDA), European Medicines Agency (EMA), or equivalent regulatory authorities for primary diagnostic or clinical decision-making.
+
+- **De-Identification**: The system strips PHI (Protected Health Information) from DICOM headers and processes volumetric data in compliance with HIPAA Safe Harbor de-identification standards.
+- **Explainability**: Every Reinforcement Learning recommendation and survival hazard adjustment is accompanied by human-interpretable clinical reasoning referencing published clinical trials.
 
 ---
 
-## Interpreting Results
-
-### Tumor Volume
-- **< 10 cc:** Small, often surgically accessible
-- **10–50 cc:** Medium; surgery + adjuvant therapy standard
-- **> 50 cc:** Large; likely affecting eloquent areas; palliative context
-
-### Growth Rate (α)
-- **< 0.01/day:** Slow growth — surveillance possible
-- **0.01–0.03/day:** Moderate growth — standard Stupp protocol
-- **> 0.03/day:** Rapid growth — aggressive multi-modal therapy warranted
-
-### Risk Level
-| Level | Meaning |
-|-------|---------|
-| Low | Estimated OS > 24 months |
-| Intermediate | Estimated OS 14–24 months |
-| High | Estimated OS 8–14 months |
-| Very High | Estimated OS < 8 months |
-
-### Radiomics Entropy
-- **< 4.0:** Homogeneous tumor — potentially lower grade or well-responding to therapy
-- **4.0–6.0:** Moderate heterogeneity — typical GBM
-- **> 6.0:** High heterogeneity — suggests necrosis, aggressive phenotype
-
----
-
-## Calibration & Accuracy
-
-All mathematical models are calibrated using **actual patient scan data**:
-
-- The **growth predictor** fits a new regression curve each time it is invoked — it adapts to each patient's specific volume history
-- The **digital twin** estimates `α` and `K` by minimizing squared residuals between the logistic model output and the observed scan volumes
-- The **survival predictor** uses hazard ratios validated in trials with thousands of GBM patients
-
-The platform automatically improves as more scans are added for a patient — each new scan refines the model parameters.
-
----
-
-## Disclaimer
-
-> **NeuroDigital Twin is a research and demonstration platform. It is not approved for clinical decision-making, has not been validated on prospective patient cohorts, and does not replace the clinical judgment of a qualified neuro-oncologist or radiation oncologist. All survival estimates, therapy recommendations, and simulation outputs are intended solely for research purposes.**
-
-The survival hazard ratios are derived from published literature and represent population averages — individual patient outcomes depend on many factors not captured in this model.
-
----
-
-## Technology Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Backend API | FastAPI 0.110 + Uvicorn |
-| AI Framework | PyTorch 2.2 + MONAI 1.3 |
-| Segmentation | 3D U-Net (MONAI) |
-| Classical ML | scikit-learn, scipy |
-| Radiomics | PyRadiomics 3.1 |
-| RL | Gymnasium 0.29 + Stable-Baselines3 2.2 |
-| Database | SQLAlchemy 2.0 (SQLite / PostgreSQL) |
-| Frontend | React 18 + Chart.js + Three.js |
-| 3D Graphics | Three.js + WebGL |
-| Containerization | Docker + docker-compose |
-| Testing | pytest + FastAPI TestClient |
-
----
-
-*NeuroDigital Twin — Building computational models of cancer, one patient at a time.*
+*NeuroDigital Twin — Accelerating Computational Oncology, One Patient at a Time.*

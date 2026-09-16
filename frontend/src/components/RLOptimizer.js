@@ -38,7 +38,7 @@ export default function RLOptimizer({ times, volumes }) {
         setLoading(true);
         setError(null);
         try {
-            const data = await optimizeTherapy(times, volumes, days, useRL);
+            const data = await optimizeTherapy(times, volumes, days, useRL, budget);
             setResult(data);
         } catch (err) {
             setError(err.message);

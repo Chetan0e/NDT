@@ -132,7 +132,7 @@ class TumorTwin:
             return "Rapid progression"
 
     def compare_therapies(self, V0: float, days: int) -> dict:
-        """Compare all therapy levels; useful for RL training reward shaping."""
+        """Compare all therapy levels; provides full trajectories for multi-curve visualization."""
         results = {}
         for level in [0.0, 1.0, 2.0, 3.0]:
             sim = self.simulate(V0, days, T=level)
@@ -140,5 +140,8 @@ class TumorTwin:
                 "final_volume": sim.final_volume,
                 "volume_change_pct": sim.volume_change_pct,
                 "therapy_intensity": level,
+                "trajectory": sim.trajectory,
+                "days": sim.days,
+                "growth_label": sim.growth_label,
             }
         return results

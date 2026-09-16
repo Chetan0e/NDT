@@ -102,18 +102,24 @@ export default function TwinSimulator({ times, volumes }) {
         const maxDays = simDays;
         const labels = Array.from({ length: maxDays + 1 }, (_, i) => `D${i}`);
 
-        const datasets = entries.map(([name, data], idx) => ({
-            label: name.split('(')[0].trim(),
-            data: Array(labels.length).fill(null).map((_, i) => {
-                if (i === 0) return comparison.initial_volume;
-                return data.final_volume; // simplified
-            }),
-            borderColor: THERAPY_LEVELS[idx]?.color || '#0284c7',
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4,
-            pointRadius: 0,
-        }));
+        const datasets = entries.map(([name, data], idx) => {
+            const traj = data.trajectory && data.trajectory.length > 0
+                ? data.trajectory
+                : Array(labels.length).fill(null).map((_, i) => {
+                    const t = i / Math.max(maxDays, 1);
+                    return comparison.initial_volume + (data.final_volume - comparison.initial_volume) * t;
+                });
+
+            return {
+                label: `${name.split('(')[0].trim()} (${data.volume_change_pct > 0 ? '+' : ''}${data.volume_change_pct}%)`,
+                data: traj,
+                borderColor: THERAPY_LEVELS[idx]?.color || '#0284c7',
+                borderWidth: idx === 3 ? 2.5 : 2,
+                fill: false,
+                tension: 0.35,
+                pointRadius: 0,
+            };
+        });
 
         return { labels, datasets };
     };

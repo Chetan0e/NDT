@@ -270,3 +270,69 @@ def test_feature_interpretation():
     data = r.json()
     assert data["feature_count"] == 3
     assert len(data["interpreted_features"]) == 3
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Seeding, Reports, Updates & Trajectories
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_seed_database_endpoint():
+    r = client.post("/seed", json={"force": True})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "success"
+    assert data["patients_seeded"] == 5
+    assert data["scans_seeded"] > 0
+
+
+def test_sample_mri_endpoint():
+    r = client.post("/sample/mri")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "success"
+    assert data["sample_mode"] is True
+    assert data["volume_cc"] > 0
+    assert "radiomics" in data
+
+
+def test_patient_update():
+    # Update Marcus Vance's KPS score
+    r = client.put("/patient/NDT-001", json={
+        "kps_score": 85,
+        "diagnosis": "Glioblastoma Multiforme (WHO Grade IV, Post-Surgery)"
+    })
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "updated"
+
+    # Verify update
+    r2 = client.get("/patient/NDT-001")
+    assert r2.status_code == 200
+    assert r2.json()["patient"]["kps_score"] == 85
+
+
+def test_patient_report_detailed():
+    r = client.get("/analytics/patient/NDT-001/report")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["report_type"] == "full_clinical_summary"
+    assert "patient" in data
+    assert "scan_summary" in data
+    assert data["scan_summary"]["total_scans"] >= 2
+    assert "generated_at" in data
+
+
+def test_compare_therapies_has_trajectories():
+    r = client.post("/compare-therapies", json={
+        "times": [0, 30, 60],
+        "volumes": [15.0, 20.0, 28.0],
+        "days": 60,
+    })
+    assert r.status_code == 200
+    data = r.json()
+    comparison = data["therapy_comparison"]
+    for label, strategy in comparison.items():
+        assert "trajectory" in strategy
+        assert len(strategy["trajectory"]) == 61
+        assert "days" in strategy
+
