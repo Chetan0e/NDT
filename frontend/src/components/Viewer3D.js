@@ -418,6 +418,10 @@ export default function Viewer3D({ volumeData, mini = false }) {
         };
     }, [volumeData, therapy, mini, sliceY, enableSlicing]);
 
+    const displayVolume = typeof volumeData?.volume_cc === 'number'
+        ? volumeData.volume_cc
+        : (typeof volumeData?.volume?.volume_cc === 'number' ? volumeData.volume.volume_cc : null);
+
     if (mini) {
         return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
     }
@@ -461,15 +465,21 @@ export default function Viewer3D({ volumeData, mini = false }) {
                                 <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Quantitative Analysis</div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                     <span>Tumor Volume:</span>
-                                    <span style={{ fontWeight: 600, color: '#38bdf8' }}>{volumeData ? volumeData.volume_cc.toFixed(2) : 'No data'} cc</span>
+                                    <span style={{ fontWeight: 600, color: '#38bdf8' }}>
+                                        {displayVolume !== null ? `${displayVolume.toFixed(2)} cc` : 'No data'}
+                                    </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                     <span>Growth Rate α:</span>
-                                    <span style={{ fontWeight: 600, color: '#fbbf24' }}>{volumeData ? (volumeData.alpha || 0.0).toFixed(3) : 'No data'} /day</span>
+                                    <span style={{ fontWeight: 600, color: '#fbbf24' }}>
+                                        {volumeData?.alpha != null ? `${Number(volumeData.alpha).toFixed(3)} /day` : 'No data'}
+                                    </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span>Risk Class:</span>
-                                    <span style={{ fontWeight: 600, color: volumeData && volumeData.risk === 'High' ? '#ef4444' : '#10b981' }}>{volumeData ? volumeData.risk || 'Unknown' : 'No data'}</span>
+                                    <span style={{ fontWeight: 600, color: volumeData && volumeData.risk === 'High' ? '#ef4444' : '#10b981' }}>
+                                        {volumeData?.risk || (displayVolume !== null ? 'Assessed' : 'No data')}
+                                    </span>
                                 </div>
                             </div>
 
@@ -527,9 +537,9 @@ export default function Viewer3D({ volumeData, mini = false }) {
                     <div className="card">
                         <div className="card-title-colored" style={{ marginBottom: 8 }}>Therapy Response Analysis</div>
                         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.4 }}>
-                            {volumeData ? 
-                                `Observe biological reduction and necrosis inside the mapped malignant core. Current volume: ${volumeData.volume_cc.toFixed(2)} cc` :
-                                'Upload MRI data to visualize therapy response and tumor dynamics.'
+                            {displayVolume !== null ? 
+                                `Observe biological reduction and necrosis inside the mapped malignant core. Current volume: ${displayVolume.toFixed(2)} cc` :
+                                'Upload MRI data or select a patient to visualize therapy response and tumor dynamics.'
                             }
                         </p>
                         <input

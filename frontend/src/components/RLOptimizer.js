@@ -47,10 +47,11 @@ export default function RLOptimizer({ times, volumes }) {
         }
     };
 
-    const therapyLevel = result
+    const bestTherapy = result?.recommendation?.best_therapy || '';
+    const therapyLevel = bestTherapy
         ? THERAPY_LEVELS.find(t =>
             t.label.toLowerCase().includes(
-                result.recommendation.best_therapy.split('(')[0].trim().toLowerCase().split(' ')[0]
+                bestTherapy.split('(')[0].trim().toLowerCase().split(' ')[0]
             )
         ) || THERAPY_LEVELS[2]
         : null;

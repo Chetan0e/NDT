@@ -4,9 +4,14 @@ Downloads BraTS-pretrained U-Net weights from a public source.
 Run once: python models/download_weights.py
 """
 import os
+import sys
 import urllib.request
 import hashlib
 from pathlib import Path
+
+# Ensure UTF-8 output encoding on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 WEIGHTS_DIR = Path(__file__).parent / "weights"
 WEIGHTS_DIR.mkdir(exist_ok=True)

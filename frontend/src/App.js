@@ -283,7 +283,16 @@ export default function App() {
                         />
                     )}
                     {activeTab === 'viewer' && (
-                        <Viewer3D volumeData={uploadResult} />
+                        <Viewer3D
+                            volumeData={
+                                uploadResult || (patient?.latest_scan ? {
+                                    volume_cc: patient.latest_scan.tumor_volume_cc,
+                                    volume_mm3: patient.latest_scan.tumor_volume_cc * 1000,
+                                    alpha: patient.growth_record?.growth_rate_alpha,
+                                    risk: patient.growth_record?.growth_label,
+                                } : null)
+                            }
+                        />
                     )}
                     {activeTab === 'graph' && (
                         <Graph

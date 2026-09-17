@@ -20,6 +20,7 @@ scipy
 # ── Medical Imaging ───────────────────────────────────────────────
 pydicom
 nibabel
+nilearn
 SimpleITK
 pyradiomics @ git+https://github.com/AIM-Harvard/pyradiomics.git
 # antspyx          # Advanced Normalization Tools (registration)

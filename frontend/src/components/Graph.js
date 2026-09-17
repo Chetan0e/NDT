@@ -49,17 +49,21 @@ const CHART_OPTS = {
     },
 };
 
-export default function Graph({ times, volumes, scanHistory }) {
+export default function Graph({ times = [], volumes = [], scanHistory = [] }) {
     const [prediction, setPrediction] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    const safeTimes = times || [];
+    const safeVolumes = volumes || [];
+    const safeHistory = scanHistory || [];
+
     const fetchPrediction = async () => {
-        if (times.length < 2) return;
+        if (safeTimes.length < 2) return;
         setLoading(true);
         setError(null);
         try {
-            const data = await predictGrowth(times, volumes);
+            const data = await predictGrowth(safeTimes, safeVolumes);
             setPrediction(data);
         } catch (err) {
             setError(err.message);
@@ -68,20 +72,23 @@ export default function Graph({ times, volumes, scanHistory }) {
         }
     };
 
+    const timesKey = safeTimes.join(',');
+    const volumesKey = safeVolumes.join(',');
+
     // Auto-run on mount if we have enough data
     useEffect(() => {
-        if (times.length >= 2) fetchPrediction();
-    }, [times.join(','), volumes.join(',')]);
+        if (safeTimes.length >= 2) fetchPrediction();
+    }, [timesKey, volumesKey]);
 
     // Build chart datasets
     const labels = [
-        ...scanHistory.map(s => s.date),
+        ...safeHistory.map(s => s?.date || ''),
         'Day +30', 'Day +60', 'Day +90',
     ];
 
-    const actualData = volumes.concat([null, null, null]);
+    const actualData = safeVolumes.concat([null, null, null]);
 
-    const predData = Array(volumes.length).fill(null).concat([
+    const predData = Array(safeVolumes.length).fill(null).concat([
         prediction?.predictions?.day_30 || null,
         prediction?.predictions?.day_60 || null,
         prediction?.predictions?.day_90 || null,

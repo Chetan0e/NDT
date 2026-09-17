@@ -96,7 +96,11 @@ def train(args):
 
     # Mixed precision (GPU only)
     use_amp = device.type == "cuda"
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    scaler = (
+        torch.amp.GradScaler("cuda", enabled=use_amp)
+        if hasattr(torch, "amp") and hasattr(torch.amp, "GradScaler")
+        else torch.cuda.amp.GradScaler(enabled=use_amp)
+    )
 
     best_dice = 0.0
 
@@ -111,7 +115,12 @@ def train(args):
             y = y.unsqueeze(1).to(device)  # add channel dim for DiceCELoss
 
             optimizer.zero_grad()
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            autocast_ctx = (
+                torch.amp.autocast(device_type="cuda", enabled=use_amp)
+                if hasattr(torch, "amp") and hasattr(torch.amp, "autocast")
+                else torch.cuda.amp.autocast(enabled=use_amp)
+            )
+            with autocast_ctx:
                 pred = model(x)
                 loss = loss_fn(pred, y)
 

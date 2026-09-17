@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
-from database import get_db, Patient, Scan, GrowthRecord
+from database import get_db, Patient, Scan, GrowthRecord, TherapySimulation
 from datetime import datetime
 
 router = APIRouter()
@@ -192,6 +192,7 @@ def delete_patient(patient_id: str, db: Session = Depends(get_db)):
 
     db.query(Scan).filter_by(patient_id=patient_id).delete()
     db.query(GrowthRecord).filter_by(patient_id=patient_id).delete()
+    db.query(TherapySimulation).filter_by(patient_id=patient_id).delete()
     db.delete(patient)
     db.commit()
     return {"status": "deleted", "patient_id": patient_id}
