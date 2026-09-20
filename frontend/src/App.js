@@ -10,12 +10,13 @@ import Survival from './components/Survival';
 import PatientPanel from './components/PatientPanel';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
+import HowToUse from './components/HowToUse';
 import Logo from './components/Logo';
 import { listPatients, getPatient, getAnalyticsOverview } from './api';
 import {
     LayoutDashboard, Users, UploadCloud, BoxSelect,
     Microscope, Network, Cpu, LineChart, Activity,
-    FileText, Settings as SettingsIcon, Bell
+    FileText, Settings as SettingsIcon, Bell, BookOpen
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -48,6 +49,7 @@ const NAV_SECTIONS = [
         items: [
             { id: 'reports', icon: <FileText size={16} />, label: 'Reports', badge: null },
             { id: 'settings', icon: <SettingsIcon size={16} />, label: 'Settings', badge: null, hasArrow: true },
+            { id: 'howto', icon: <BookOpen size={16} />, label: 'How To Use', badge: 'NEW', hasArrow: false },
         ],
     },
 ];
@@ -324,6 +326,9 @@ export default function App() {
                     )}
                     {activeTab === 'settings' && (
                         <Settings />
+                    )}
+                    {activeTab === 'howto' && (
+                        <HowToUse />
                     )}
                 </main>
             </div>
