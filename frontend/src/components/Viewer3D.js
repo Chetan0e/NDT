@@ -1,584 +1,1642 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
-import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry';
+import {
+    Ruler, Camera, RotateCw, Maximize2, Minimize2,
+    Eye, EyeOff, Layers, Scissors, Split, Sparkles,
+    Check, X, RefreshCw, ZoomIn, Info, Activity,
+    Sliders, Compass, Download, ShieldCheck, AlertCircle,
+    ChevronDown, Move
+} from 'lucide-react';
+
+// ── Custom GLSL Anatomical Brain Shaders ─────────────────────────────────────
+const BRAIN_VERTEX_SHADER = `
+    #include <clipping_planes_pars_vertex>
+    attribute float sulcusDepth;
+    attribute float lobeType;
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+    varying vec3 vWorldPosition;
+    varying float vSulcusDepth;
+    varying float vLobeType;
+
+    void main() {
+        #include <begin_vertex>
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+        vSulcusDepth = sulcusDepth;
+        vLobeType = lobeType;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <project_vertex>
+        #include <clipping_planes_vertex>
+    }
+`;
+
+const BRAIN_FRAGMENT_SHADER = `
+    #include <clipping_planes_pars_fragment>
+    uniform int uMode;        // 0: Anatomical Realistic, 1: Lobes, 2: Glass Brain, 3: Radiologic
+    uniform float uOpacity;
+    uniform float uSplit;
+    varying vec3 vNormal;
+    varying vec3 vViewPosition;
+    varying vec3 vWorldPosition;
+    varying float vSulcusDepth;
+    varying float vLobeType;
+
+    void main() {
+        #include <clipping_planes_fragment>
+
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(vViewPosition);
+        float NdotV = max(dot(N, V), 0.0);
+        float fresnel = pow(1.0 - NdotV, 2.5);
+
+        // Standard diffuse lighting with soft fill
+        vec3 lightDir1 = normalize(vec3(0.5, 0.8, 0.6));
+        vec3 lightDir2 = normalize(vec3(-0.6, -0.4, -0.5));
+        float diff1 = max(dot(N, lightDir1), 0.0);
+        float diff2 = max(dot(N, lightDir2), 0.0) * 0.35;
+        float diffuse = diff1 + diff2 + 0.38;
+
+        vec3 finalColor = vec3(0.85);
+
+        if (uMode == 0) {
+            // ── Mode 0: Clinical Anatomical Realistic ─────────────────────────
+            // Warm living cortical tissue on gyri crests, deep rich vascular tone in sulci
+            vec3 gyriColor = vec3(0.96, 0.91, 0.86);         // Warm fleshy cortical surface
+            vec3 sulciColor = vec3(0.42, 0.14, 0.17);        // Rich vascular sulcal depth
+            vec3 tissueColor = mix(gyriColor, sulciColor, clamp(vSulcusDepth * 0.82, 0.0, 1.0));
+
+            // Soft biological rim lighting
+            vec3 rimColor = vec3(0.85, 0.92, 1.0) * fresnel * 0.28;
+            finalColor = tissueColor * diffuse + rimColor;
+            gl_FragColor = vec4(finalColor, uOpacity);
+
+        } else if (uMode == 1) {
+            // ── Mode 1: Neuro-Anatomical Lobes Segmentation ───────────────────
+            // Frontal (Cyan), Parietal (Amber), Temporal (Violet), Occipital (Rose), Medial (Emerald)
+            vec3 lobeCol;
+            if (vLobeType < 0.5) {
+                lobeCol = vec3(0.06, 0.68, 0.92); // Frontal Lobe - Cyan
+            } else if (vLobeType < 1.5) {
+                lobeCol = vec3(0.96, 0.64, 0.12); // Parietal Lobe - Amber
+            } else if (vLobeType < 2.5) {
+                lobeCol = vec3(0.58, 0.38, 0.96); // Temporal Lobe - Purple
+            } else if (vLobeType < 3.5) {
+                lobeCol = vec3(0.96, 0.28, 0.42); // Occipital Lobe - Rose
+            } else {
+                lobeCol = vec3(0.10, 0.76, 0.54); // Medial / Limbic - Emerald
+            }
+
+            // Sulcal depth shading on lobes
+            vec3 shadedLobe = mix(lobeCol, lobeCol * 0.45, vSulcusDepth * 0.55);
+            vec3 rim = vec3(1.0) * fresnel * 0.25;
+            finalColor = shadedLobe * diffuse + rim;
+            gl_FragColor = vec4(finalColor, uOpacity);
+
+        } else if (uMode == 2) {
+            // ── Mode 2: Glass Brain / Hologram (X-Ray Intraoperative Mode) ────
+            // Luminous transparent shell exposing deep glioblastoma core & margins
+            vec3 glassEdge = vec3(0.22, 0.78, 0.98);
+            vec3 glassBody = vec3(0.08, 0.25, 0.45);
+            float edgeFactor = clamp(pow(1.0 - NdotV, 2.0) * 1.8 + 0.12, 0.0, 1.0);
+            finalColor = mix(glassBody, glassEdge, edgeFactor);
+            float alpha = edgeFactor * uOpacity;
+            gl_FragColor = vec4(finalColor, alpha);
+
+        } else {
+            // ── Mode 3: Clinical Radiologic T1/T2 MRI Grayscale ───────────────
+            float gray = mix(0.92, 0.22, vSulcusDepth);
+            finalColor = vec3(gray) * diffuse;
+            gl_FragColor = vec4(finalColor, uOpacity);
+        }
+    }
+`;
+
+// Helper: Procedural high-detail cortical hemisphere geometry fallback
+function generateProceduralHemisphereGeometry(isLeft = true) {
+    const geo = new THREE.SphereGeometry(62, 72, 72, 0, Math.PI, 0, Math.PI);
+    geo.rotateY(isLeft ? Math.PI : 0);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        let x = pos.getX(i);
+        let y = pos.getY(i);
+        let z = pos.getZ(i);
+
+        // Human brain ellipsoid proportions (Length > Height > Width)
+        x *= 0.72;
+        y *= 0.95;
+        z *= 1.25;
+
+        // Procedural gyri and sulci multi-frequency harmonics
+        const g1 = Math.sin(x * 0.18) * Math.cos(y * 0.22) * Math.sin(z * 0.20) * 4.5;
+        const g2 = Math.sin(x * 0.42 + 1.2) * Math.cos(z * 0.38) * 2.2;
+        const g3 = Math.cos(y * 0.55) * Math.sin(z * 0.48) * 1.5;
+        const disp = g1 + g2 + g3;
+
+        pos.setXYZ(i, x + (x > 0 ? disp : -disp) * 0.3, y + disp * 0.4, z + disp * 0.5);
+    }
+    geo.computeVertexNormals();
+    return geo;
+}
 
 export default function Viewer3D({ volumeData, mini = false }) {
     const mountRef = useRef(null);
-    const rendererRef = useRef(null);
-    const animRef = useRef(null);
-    const [therapy, setTherapy] = useState(0);
-    const [sliceY, setSliceY] = useState(40);
-    const [enableSlicing, setEnableSlicing] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const containerRef = useRef(null);
+    const sceneRefs = useRef(null);
 
+    // ── Interactive State ─────────────────────────────────────────────────────
+    const [viewMode, setViewMode] = useState('anatomical'); // 'anatomical' | 'lobes' | 'xray' | 'wireframe' | 'radiologic'
+    const [hemisphere, setHemisphere] = useState('both');    // 'both' | 'left' | 'right'
+    const [splitDistance, setSplitDistance] = useState(0);   // 0 to 45 mm
+    const [cortexOpacity, setCortexOpacity] = useState(1.0);  // 0.1 to 1.0
+    const [enableSlicing, setEnableSlicing] = useState(false);
+    const [sliceAxis, setSliceAxis] = useState('axial');     // 'axial' | 'coronal' | 'sagittal'
+    const [slicePos, setSlicePos] = useState(15);            // mm position along axis
+    const [therapy, setTherapy] = useState(0);               // 0: Pre-tx, 1: Std Stupp, 2: Targeted, 3: Remission
+    const [marginDistance, setMarginDistance] = useState(15);// 10 to 20 mm
+    const [autoRotate, setAutoRotate] = useState(mini);
+    const [measureActive, setMeasureActive] = useState(false);
+    const [measuredDistance, setMeasuredDistance] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [loadingProgress, setLoadingProgress] = useState(15);
+    const [showLayers, setShowLayers] = useState(false);
+    const [visibility, setVisibility] = useState({
+        cortex: true,
+        tumorCore: true,
+        necroticZone: true,
+        infiltration: true,
+        margin: true,
+        slicePlane: true,
+        compass: true,
+    });
+
+    // ── Clinical Tumor Volume Calculations ────────────────────────────────────
+    const baseVolumeCc = typeof volumeData?.volume_cc === 'number'
+        ? volumeData.volume_cc
+        : (typeof volumeData?.volume?.volume_cc === 'number' ? volumeData.volume.volume_cc : 52.8);
+
+    // Therapy regression simulation
+    const therapyReductionRatio = [0.0, 0.28, 0.62, 0.88][Math.min(therapy, 3)] || 0.0;
+    const currentVolumeCc = Math.max(1.2, baseVolumeCc * (1.0 - therapyReductionRatio));
+    const edemaVolumeCc = (currentVolumeCc * 1.65).toFixed(1);
+    const necroticRatioPct = Math.min(65, Math.round(18 + therapy * 14));
+
+    // ── Scene Initialization (Runs ONCE) ──────────────────────────────────────
     useEffect(() => {
         const mount = mountRef.current;
         if (!mount) return;
 
-        // ── Scene Setup ──────────────────────────────────────────────────────
-        const W = mount.clientWidth || 480;
-        const H = mount.clientHeight || 480;
+        const W = mount.clientWidth || (mini ? 280 : 720);
+        const H = mount.clientHeight || (mini ? 220 : 580);
 
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(mini ? '#090d14' : '#070b12');
         if (!mini) {
-            scene.background = new THREE.Color('#0b0f14'); // Clinical dark background
-            scene.fog = new THREE.FogExp2('#0b0f14', 0.0015);
-        } else {
-            scene.background = new THREE.Color('#0b0f14');
+            scene.fog = new THREE.FogExp2('#070b12', 0.0012);
         }
 
-        const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000);
-        camera.position.set(0, 0, mini ? 150 : 250);
+        const camera = new THREE.PerspectiveCamera(40, W / H, 1.0, 1500);
+        camera.position.set(mini ? 0 : 60, mini ? 15 : 45, mini ? 165 : 240);
 
         const renderer = new THREE.WebGLRenderer({
             antialias: true,
             alpha: true,
-            logarithmicDepthBuffer: true,
-            powerPreference: "high-performance"
+            powerPreference: 'high-performance',
+            preserveDrawingBuffer: true, // Required for clean snapshot downloads
         });
         renderer.setSize(W, H);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.localClippingEnabled = true;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.9; // Clinical softer exposure
+        renderer.toneMappingExposure = 1.05;
         mount.appendChild(renderer.domElement);
-        rendererRef.current = renderer;
 
-        // Realistic Studio Environment Reflection
-        const pmremGenerator = new THREE.PMREMGenerator(renderer);
-        pmremGenerator.compileEquirectangularShader();
+        // PMREM Room Environment for subtle organic reflections
+        const pmrem = new THREE.PMREMGenerator(renderer);
         const roomEnv = new RoomEnvironment();
-        scene.environment = pmremGenerator.fromScene(roomEnv).texture;
+        scene.environment = pmrem.fromScene(roomEnv).texture;
         roomEnv.dispose();
+        pmrem.dispose();
 
-        // ── Advanced Post-Processing ──────────────────────────────────
-        let composer = null;
-        if (!mini) {
-            composer = new EffectComposer(renderer);
-            composer.setPixelRatio(window.devicePixelRatio);
-
-            const renderPass = new RenderPass(scene, camera);
-            composer.addPass(renderPass);
-
-            // SSAO Removed - Medical viewers avoid stylized shading
-
-            const outputPass = new OutputPass();
-            composer.addPass(outputPass);
-        }
-
-        // ── Controls ─────────────────────────────────────────────────────────
+        // OrbitControls
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.dampingFactor = 0.04;
-        controls.enablePan = true;
-        controls.enableZoom = true;
-        if (mini) {
-            controls.enableZoom = false;
-            controls.enablePan = false;
-            controls.autoRotate = true;
-            controls.autoRotateSpeed = 2.0;
-        }
+        controls.dampingFactor = 0.05;
+        controls.enablePan = !mini;
+        controls.enableZoom = !mini;
+        controls.autoRotate = mini;
+        controls.autoRotateSpeed = 1.8;
+        controls.target.set(0, 0, 0);
 
-        // ── Lighting ─────────────────────────────────────────────────────────
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
+        // ── Lighting Rig ──────────────────────────────────────────────────────
+        const ambLight = new THREE.AmbientLight(0xffffff, 0.75);
+        scene.add(ambLight);
 
-        const hemi = new THREE.HemisphereLight(0xffffff, 0xeeeeee, 0.6);
-        scene.add(hemi);
+        const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.85);
+        scene.add(hemiLight);
 
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-        keyLight.position.set(80, 120, 100);
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+        keyLight.position.set(100, 160, 120);
         scene.add(keyLight);
 
-        // ── Advanced Material Definition ─────────────────────────────────────
-        // ── Advanced Material Definition ─────────────────────────────────────
-        const planes = {
-            axial: new THREE.Plane(new THREE.Vector3(0, -1, 0), sliceY),
-            coronal: new THREE.Plane(new THREE.Vector3(0, 0, -1), 0),
-            sagittal: new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0)
+        const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
+        fillLight.position.set(-120, -60, -90);
+        scene.add(fillLight);
+
+        const backRimLight = new THREE.DirectionalLight(0xa78bfa, 0.55);
+        backRimLight.position.set(0, -120, 140);
+        scene.add(backRimLight);
+
+        // ── Clipping Planes ───────────────────────────────────────────────────
+        const clippingPlanes = {
+            axial: new THREE.Plane(new THREE.Vector3(0, -1, 0), 100),    // Superior-Inferior (Y in 3D)
+            coronal: new THREE.Plane(new THREE.Vector3(0, 0, -1), 100),  // Anterior-Posterior (Z in 3D)
+            sagittal: new THREE.Plane(new THREE.Vector3(-1, 0, 0), 100), // Left-Right (X in 3D)
         };
 
-        const brainMat = new THREE.MeshStandardMaterial({
-            color: 0xbfc5cc,
-            roughness: 0.92,
-            metalness: 0.0,
-            flatShading: false,
-            side: THREE.FrontSide,
-            clippingPlanes: enableSlicing ? Object.values(planes) : []
+        // ── Brain Shaders & Materials ─────────────────────────────────────────
+        const brainUniforms = {
+            uMode: { value: 0 },
+            uOpacity: { value: 1.0 },
+            uSplit: { value: 0.0 },
+        };
+
+        const brainMat = new THREE.ShaderMaterial({
+            vertexShader: BRAIN_VERTEX_SHADER,
+            fragmentShader: BRAIN_FRAGMENT_SHADER,
+            uniforms: brainUniforms,
+            clipping: true,
+            clippingPlanes: [],
+            side: THREE.DoubleSide,
+            transparent: true,
+            depthWrite: true,
         });
 
-        function addOrientationLabels(sceneTarget) {
-            const fontLoader = new FontLoader();
-            fontLoader.load('/helvetiker_regular.typeface.json', font => {
-                const labels = ['R', 'L', 'A', 'P', 'S', 'I'];
-                const positions = [
-                    [120, 0, 0],
-                    [-120, 0, 0],
-                    [0, 120, 0],
-                    [0, -120, 0],
-                    [0, 0, 120],
-                    [0, 0, -120]
-                ];
+        const brainWireMat = new THREE.MeshBasicMaterial({
+            color: 0x0ea5e9,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.28,
+            clippingPlanes: [],
+        });
 
-                labels.forEach((label, i) => {
-                    const geo = new TextGeometry(label, {
-                        font,
-                        size: 8,
-                        height: 1
-                    });
-                    const mat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-                    const mesh = new THREE.Mesh(geo, mat);
-                    mesh.position.set(...positions[i]);
-                    sceneTarget.add(mesh);
-                });
-            });
-        }
-        if (!mini) addOrientationLabels(scene);
+        // ── Scene Groups Hierarchy ───────────────────────────────────────────
+        const rootGroup = new THREE.Group();
+        scene.add(rootGroup);
 
         const brainGroup = new THREE.Group();
-        // Brain origin usually needs offset, rotating Z-up FreeSurfer to Y-up ThreeJS
+        // Rotate Z-up FreeSurfer coordinate system to ThreeJS Y-up
         brainGroup.rotation.x = -Math.PI / 2;
-        scene.add(brainGroup);
+        rootGroup.add(brainGroup);
 
-        // ── Model Loading ────────────────────────────────────────────────────
-        let loadedCount = 0;
-        const loader = new OBJLoader();
+        const lhGroup = new THREE.Group();
+        const rhGroup = new THREE.Group();
+        brainGroup.add(lhGroup);
+        brainGroup.add(rhGroup);
 
-        const computeSmoothMorph = (geometry) => {
-            // Remove UVs, existing normals to reconstruct
-            if (geometry.attributes.uv) geometry.deleteAttribute('uv');
-            if (geometry.attributes.normal) geometry.deleteAttribute('normal');
+        const pathologyGroup = new THREE.Group();
+        brainGroup.add(pathologyGroup);
 
-            // Merge vertices at a tighter tolerance for smooth tissue look while preserving topology
-            const mergedGeo = BufferGeometryUtils.mergeVertices(geometry, 0.05);
-            mergedGeo.computeVertexNormals();
-            return mergedGeo;
+        const caliperGroup = new THREE.Group();
+        scene.add(caliperGroup);
+
+        const sliceHelperGroup = new THREE.Group();
+        scene.add(sliceHelperGroup);
+
+        // ── Slicing Plane Helper Visualizer ──────────────────────────────────
+        const slicePlaneGeo = new THREE.PlaneGeometry(175, 175);
+        const slicePlaneMat = new THREE.MeshBasicMaterial({
+            color: 0x0284c7,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.18,
+            wireframe: false,
+        });
+        const slicePlaneMesh = new THREE.Mesh(slicePlaneGeo, slicePlaneMat);
+        const sliceGrid = new THREE.GridHelper(175, 14, 0x38bdf8, 0x1e3a5f);
+        sliceGrid.rotation.x = Math.PI / 2;
+        slicePlaneMesh.add(sliceGrid);
+        slicePlaneMesh.visible = false;
+        sliceHelperGroup.add(slicePlaneMesh);
+
+        // ── Pathology: Multi-Compartment Glioblastoma Tumor ──────────────────
+        // Locus: Right fronto-parietal subcortical region (centered coords: x=24, y=14, z=18)
+        const tumorLocus = new THREE.Vector3(24, 14, 18);
+        pathologyGroup.position.copy(tumorLocus);
+
+        // 1. Enhancing Tumor Core (Active Neoplasm)
+        const coreGeo = new THREE.IcosahedronGeometry(14, 4);
+        // Perturb vertices with organic nodular variance
+        const cPos = coreGeo.attributes.position;
+        for (let i = 0; i < cPos.count; i++) {
+            const vx = cPos.getX(i);
+            const vy = cPos.getY(i);
+            const vz = cPos.getZ(i);
+            const noise = Math.sin(vx * 0.35) * Math.cos(vy * 0.35) * Math.sin(vz * 0.35) * 3.8;
+            cPos.setXYZ(i, vx + noise * 0.35, vy + noise * 0.4, vz + noise * 0.35);
+        }
+        coreGeo.computeVertexNormals();
+
+        const tumorUniforms = {
+            uTime: { value: 0 },
+            uTherapy: { value: 0 },
         };
 
-        const onLoadCheck = () => {
-            loadedCount++;
-            if (loadedCount >= 2) {
-                setLoading(false);
-                const box = new THREE.Box3().setFromObject(brainGroup);
-                const center = box.getCenter(new THREE.Vector3());
-                brainGroup.position.sub(center);
-            }
-        };
-
-        loader.load('/lh_brain.obj', (obj) => {
-            obj.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry = computeSmoothMorph(child.geometry);
-                    child.material = brainMat;
-                }
-            });
-            brainGroup.add(obj);
-            onLoadCheck();
-        });
-
-        loader.load('/rh_brain.obj', (obj) => {
-            obj.traverse(child => {
-                if (child.isMesh) {
-                    child.geometry = computeSmoothMorph(child.geometry);
-                    child.material = brainMat;
-                }
-            });
-            brainGroup.add(obj);
-            onLoadCheck();
-        });
-
-        // ── Real tumor data integration ────────────────────────────────────────
-        const tumorMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uIntensity: { value: therapy },
-                uTime: { value: 0 },
-                uVolumeData: { value: volumeData?.volume_cc || 23.4 }
-            },
+        const tumorCoreMat = new THREE.ShaderMaterial({
+            uniforms: tumorUniforms,
             vertexShader: `
                 #include <clipping_planes_pars_vertex>
                 varying vec3 vNormal;
-                varying vec3 vPosition;
+                varying vec3 vPos;
                 void main() {
                     #include <begin_vertex>
-                    vNormal = normal;
-                    vPosition = position;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+                    vNormal = normalMatrix * normal;
+                    vPos = position;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     #include <project_vertex>
                     #include <clipping_planes_vertex>
                 }
             `,
             fragmentShader: `
                 #include <clipping_planes_pars_fragment>
-                uniform float uIntensity;
                 uniform float uTime;
-                uniform float uVolumeData;
+                uniform float uTherapy;
                 varying vec3 vNormal;
-                varying vec3 vPosition;
-                
+                varying vec3 vPos;
                 void main() {
                     #include <clipping_planes_fragment>
-                    
-                    // Dynamic tumor visualization based on real volume data
-                    float normalizedVolume = clamp(uVolumeData / 50.0, 0.1, 1.0);
-                    
-                    // Create biological color variation
-                    vec3 healthyColor = vec3(0.9, 0.95, 0.96);  // Light gray tissue
-                    vec3 tumorColor = vec3(0.8, 0.2, 0.2);     // Red tumor core
-                    vec3 necroticColor = vec3(0.1, 0.7, 0.2);  // Green necrotic tissue
-                    
-                    // Calculate surface curvature for biological realism
-                    float curvature = length(vNormal) * 0.5 + 0.5;
-                    
-                    // Therapy response visualization
-                    float therapyEffect = uIntensity * 0.3;
-                    
-                    // Mix colors based on biological state
-                    vec3 finalColor = mix(tumorColor, necroticColor, therapyEffect);
-                    finalColor = mix(healthyColor, finalColor, normalizedVolume);
-                    
-                    // Add subtle pulsation for living tissue
-                    float pulse = sin(uTime * 2.0 + vPosition.y * 0.1) * 0.05 + 0.95;
-                    finalColor *= pulse;
-                    
-                    gl_FragColor = vec4(finalColor, 1.0);
+                    vec3 N = normalize(vNormal);
+                    float diff = max(dot(N, vec3(0.5, 0.8, 0.6)), 0.0) * 0.7 + 0.3;
+                    // Active hypervascular tumor core with metabolic perfusion pulse
+                    float pulse = sin(uTime * 2.8 + vPos.y * 0.2) * 0.08 + 0.92;
+                    vec3 activeRed = vec3(0.92, 0.15, 0.18);
+                    vec3 necroGray = vec3(0.18, 0.35, 0.22);
+                    vec3 col = mix(activeRed, necroGray, uTherapy * 0.32);
+                    gl_FragColor = vec4(col * diff * pulse, 1.0);
                 }
             `,
             clipping: true,
-            clippingPlanes: enableSlicing ? Object.values(planes) : [],
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
         });
+        const tumorCoreMesh = new THREE.Mesh(coreGeo, tumorCoreMat);
+        pathologyGroup.add(tumorCoreMesh);
 
-        // ── Real data-driven tumor generation ───────────────────────────────────
-        function buildRealisticTumor(volumeData, material) {
-            const size = 64;
-            const effect = new MarchingCubes(size, material, true, true);
-            effect.isolation = 80;
+        // 2. Central Hypoxic Necrotic Core
+        const necroGeo = new THREE.IcosahedronGeometry(8.5, 3);
+        const necroMat = new THREE.MeshStandardMaterial({
+            color: 0x064e3b, // Dark necrotic green-slate
+            roughness: 0.9,
+            metalness: 0.1,
+            clippingPlanes: [],
+        });
+        const necroMesh = new THREE.Mesh(necroGeo, necroMat);
+        pathologyGroup.add(necroMesh);
 
-            // Create tumor mask based on real volume data
-            const volume = volumeData?.volume_cc || 23.4;
-            const maxR = Math.cbrt(volume / 200) * 12;
-            
-            // Generate biologically accurate tumor shape
-            for (let z = 0; z < size; z++) {
-                for (let y = 0; y < size; y++) {
-                    for (let x = 0; x < size; x++) {
-                        const dx = x - 32, dy = y - 32, dz = z - 32;
-                        
-                        // Irregular tumor shape with biological variance
-                        const coreRadius = maxR * 0.7;
-                        const outerRadius = maxR;
-                        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                        
-                        // Add biological irregularity
-                        const irregularity = Math.sin(dx * 0.3) * Math.cos(dy * 0.3) * Math.sin(dz * 0.3) * 0.2;
-                        const effectiveRadius = outerRadius + irregularity;
-                        
-                        // Create tumor density gradient (core > infiltrative > necrotic)
-                        let cellValue = 0;
-                        if (distance < coreRadius) {
-                            cellValue = 100; // Dense tumor core
-                        } else if (distance < effectiveRadius) {
-                            // Infiltrative zone with decreasing density
-                            const infiltration = 1 - (distance - coreRadius) / (effectiveRadius - coreRadius);
-                            cellValue = infiltration * 80;
-                        }
-                        
-                        effect.setCell(x, y, z, cellValue);
-                    }
+        // 3. Peritumoral Infiltration & Edema Halo (FLAIR Hyperintensity)
+        const edemaGeo = new THREE.IcosahedronGeometry(22, 3);
+        const edemaMat = new THREE.MeshStandardMaterial({
+            color: 0xf59e0b, // Amber gold edema
+            transparent: true,
+            opacity: 0.22,
+            roughness: 0.8,
+            metalness: 0.0,
+            depthWrite: false,
+            clippingPlanes: [],
+        });
+        const edemaMesh = new THREE.Mesh(edemaGeo, edemaMat);
+        pathologyGroup.add(edemaMesh);
+
+        // 4. Surgical Resection Margin Safety Boundary
+        const marginGeo = new THREE.IcosahedronGeometry(25, 2);
+        const marginMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.32,
+            clippingPlanes: [],
+        });
+        const marginMesh = new THREE.Mesh(marginGeo, marginMat);
+        pathologyGroup.add(marginMesh);
+
+        // ── Vertex Attribute Calculation (Sulcal Depth & Anatomical Lobes) ────
+        const enrichBrainGeometry = (geometry, isLeft) => {
+            // Merge vertices at tight tolerance for seamless shading
+            const merged = BufferGeometryUtils.mergeVertices(geometry, 0.06);
+            merged.computeVertexNormals();
+
+            const posAttr = merged.attributes.position;
+            const normAttr = merged.attributes.normal;
+            const count = posAttr.count;
+
+            const sulcusArray = new Float32Array(count);
+            const lobeArray = new Float32Array(count);
+
+            for (let i = 0; i < count; i++) {
+                const x = posAttr.getX(i);
+                const y = posAttr.getY(i);
+                const z = posAttr.getZ(i);
+
+                const nx = normAttr.getX(i);
+                const ny = normAttr.getY(i);
+                const nz = normAttr.getZ(i);
+
+                // Compute radial outward vector
+                const r = Math.sqrt(x * x + y * y + z * z) || 1.0;
+                const rx = x / r;
+                const ry = y / r;
+                const rz = z / r;
+
+                // Dot product of normal with radial direction
+                const dotRadial = nx * rx + ny * ry + nz * rz;
+                // Gyri face outwards (dotRadial ~ 0.8 to 1.0), sulci plunge inwards (dotRadial <= 0.4)
+                const depth = Math.max(0.0, Math.min(1.0, (0.75 - dotRadial) * 1.6 + (1.0 - r / 75.0) * 0.7));
+                sulcusArray[i] = depth;
+
+                // ── Anatomical Lobes in FreeSurfer Coordinates ─────────────────
+                // y: anterior (+)/posterior (-); z: superior (+)/inferior (-); x: left (-)/right (+)
+                if (y > 10.0 && z > -15.0) {
+                    lobeArray[i] = 0.0; // Frontal Lobe
+                } else if (y <= 10.0 && y > -55.0 && z > 15.0) {
+                    lobeArray[i] = 1.0; // Parietal Lobe
+                } else if (z <= 15.0 && y > -55.0 && Math.abs(x) > 20.0) {
+                    lobeArray[i] = 2.0; // Temporal Lobe
+                } else if (y <= -55.0) {
+                    lobeArray[i] = 3.0; // Occipital Lobe
+                } else {
+                    lobeArray[i] = 4.0; // Medial / Insular / Deep Cortex
                 }
             }
-            return effect;
-        }
 
-        const tumor = buildRealisticTumor(volumeData, tumorMat);
-        tumor.position.set(20, -10, 10);
+            merged.setAttribute('sulcusDepth', new THREE.BufferAttribute(sulcusArray, 1));
+            merged.setAttribute('lobeType', new THREE.BufferAttribute(lobeArray, 1));
+            return merged;
+        };
 
-        if (!mini) brainGroup.add(tumor);
+        // ── Load Clinical OBJ Models with Procedural Fallback ──────────────────
+        let lhMesh = null;
+        let rhMesh = null;
+        let lhWire = null;
+        let rhWire = null;
+        let loadFinishedCount = 0;
 
-        const ringGeo = new THREE.RingGeometry(95, 96, 64);
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: 0x38bdf8, side: THREE.DoubleSide, transparent: true, opacity: 0.6,
-        });
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.x = -Math.PI / 2;
-        if (enableSlicing && !mini) {
-            ring.position.y = sliceY;
-            scene.add(ring);
-        }
+        const checkCenterAndReady = () => {
+            loadFinishedCount++;
+            setLoadingProgress(Math.min(95, loadFinishedCount * 48));
 
-        // ── Measurement Tool ───────────────────────────────────────────────
-        const raycaster = new THREE.Raycaster();
-        const points = [];
-        const mouse = new THREE.Vector2();
+            if (loadFinishedCount >= 2) {
+                // Compute collective bounding box and center brain
+                const box = new THREE.Box3().setFromObject(brainGroup);
+                const center = box.getCenter(new THREE.Vector3());
+                // Center the group at origin
+                lhGroup.position.sub(center);
+                rhGroup.position.sub(center);
+                pathologyGroup.position.sub(center);
 
-        const onCanvasClick = (e) => {
-            const rect = renderer.domElement.getBoundingClientRect();
-            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
-                return;
+                setLoading(false);
+                setLoadingProgress(100);
             }
+        };
+
+        const setupHemisphereMesh = (geo, isLeft) => {
+            const enriched = enrichBrainGeometry(geo, isLeft);
+            const mesh = new THREE.Mesh(enriched, brainMat);
+            const wire = new THREE.Mesh(enriched, brainWireMat);
+            wire.visible = false;
+
+            const targetGroup = isLeft ? lhGroup : rhGroup;
+            targetGroup.add(mesh);
+            targetGroup.add(wire);
+
+            if (isLeft) {
+                lhMesh = mesh;
+                lhWire = wire;
+            } else {
+                rhMesh = mesh;
+                rhWire = wire;
+            }
+            checkCenterAndReady();
+        };
+
+        const objLoader = new OBJLoader();
+
+        // Load Left Hemisphere
+        objLoader.load(
+            '/lh_brain.obj',
+            (obj) => {
+                let found = false;
+                obj.traverse(child => {
+                    if (child.isMesh && !found) {
+                        found = true;
+                        setupHemisphereMesh(child.geometry, true);
+                    }
+                });
+                if (!found) setupHemisphereMesh(generateProceduralHemisphereGeometry(true), true);
+            },
+            undefined,
+            () => {
+                // Fallback to high-detail procedural hemisphere
+                setupHemisphereMesh(generateProceduralHemisphereGeometry(true), true);
+            }
+        );
+
+        // Load Right Hemisphere
+        objLoader.load(
+            '/rh_brain.obj',
+            (obj) => {
+                let found = false;
+                obj.traverse(child => {
+                    if (child.isMesh && !found) {
+                        found = true;
+                        setupHemisphereMesh(child.geometry, false);
+                    }
+                });
+                if (!found) setupHemisphereMesh(generateProceduralHemisphereGeometry(false), false);
+            },
+            undefined,
+            () => {
+                // Fallback to high-detail procedural hemisphere
+                setupHemisphereMesh(generateProceduralHemisphereGeometry(false), false);
+            }
+        );
+
+        // ── Caliper Measurement System ────────────────────────────────────────
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const measurePoints = [];
+        let caliperLine = null;
+        const caliperMarkers = [];
+
+        const clearCaliper = () => {
+            measurePoints.length = 0;
+            while (caliperGroup.children.length > 0) {
+                const child = caliperGroup.children[0];
+                caliperGroup.remove(child);
+                if (child.geometry) child.geometry.dispose();
+            }
+            caliperMarkers.length = 0;
+            caliperLine = null;
+            setMeasuredDistance(null);
+        };
+
+        const onCanvasPointerDown = (e) => {
+            if (!sceneRefs.current?.measureActive) return;
+
+            const rect = renderer.domElement.getBoundingClientRect();
             mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
-            const hit = raycaster.intersectObjects(scene.children, true)[0];
-            if (hit) {
-                points.push(hit.point.clone());
+            const intersects = raycaster.intersectObjects([rootGroup], true);
 
-                // Add point marker
-                const marker = new THREE.Mesh(
-                    new THREE.SphereGeometry(1.5, 16, 16),
-                    new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-                );
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                measurePoints.push(hit.point.clone());
+
+                // Create glowing point marker
+                const pGeo = new THREE.SphereGeometry(2.0, 16, 16);
+                const pMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+                const marker = new THREE.Mesh(pGeo, pMat);
                 marker.position.copy(hit.point);
-                scene.add(marker);
+                caliperGroup.add(marker);
+                caliperMarkers.push(marker);
 
-                if (points.length === 2) {
-                    const d = points[0].distanceTo(points[1]);
-                    console.log("Distance:", d.toFixed(2), "mm");
+                if (measurePoints.length === 2) {
+                    const dist = measurePoints[0].distanceTo(measurePoints[1]);
+                    setMeasuredDistance(dist.toFixed(1));
 
-                    // Add line between points
-                    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-                    const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 });
-                    const line = new THREE.Line(lineGeo, lineMat);
-                    scene.add(line);
+                    // Create laser caliper line
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints(measurePoints);
+                    const lineMat = new THREE.LineDashedMaterial({
+                        color: 0x38bdf8,
+                        dashSize: 3,
+                        gapSize: 1.5,
+                        linewidth: 2,
+                    });
+                    caliperLine = new THREE.Line(lineGeo, lineMat);
+                    caliperLine.computeLineDistances();
+                    caliperGroup.add(caliperLine);
 
-                    // Reset points for next measurement
-                    points.length = 0;
+                    // Stop caliper mode after measuring two points
+                    sceneRefs.current.measureActive = false;
+                    setMeasureActive(false);
+                    controls.enabled = true;
                 }
             }
         };
-        window.addEventListener('click', onCanvasClick);
 
-        // ── Real data-driven surgical margin ───────────────────────────────────
-        const marginMesh = buildRealisticTumor(volumeData, new THREE.MeshBasicMaterial({
-            color: 0xffff00, transparent: true, opacity: 0.15, wireframe: true
-        }));
-        marginMesh.position.set(20, -10, 10);
-        // Surgical margin typically 1-2cm beyond tumor boundary
-        marginMesh.scale.setScalar(1.5 + (volumeData?.margin_cm || 1.5) / 10);
-        if (!mini) brainGroup.add(marginMesh);
+        renderer.domElement.addEventListener('pointerdown', onCanvasPointerDown);
 
-        // ── Enhanced Animation with real data ───────────────────────────────────
-        let t = 0;
+        // ── Animation Loop ───────────────────────────────────────────────────
+        let clock = new THREE.Clock();
+        let animId = null;
+
         const animate = () => {
-            animRef.current = requestAnimationFrame(animate);
-            t += 0.01;
+            animId = requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+
             controls.update();
 
-            // Update tumor material uniforms for dynamic visualization
-            if (tumorMat.uniforms) {
-                tumorMat.uniforms.uTime.value = t;
-                tumorMat.uniforms.uIntensity.value = therapy;
-            }
+            // Animate tumor metabolic pulse
+            tumorUniforms.uTime.value = elapsed;
 
-            // Scale tumor based on real volume data
-            const volumeScale = Math.cbrt((volumeData?.volume_cc || 23.4) / 23.4);
-            tumor.scale.setScalar(15 * volumeScale);
-
-            if (composer) {
-                composer.render();
-            } else {
-                renderer.render(scene, camera);
-            }
+            renderer.render(scene, camera);
         };
         animate();
 
-        // ── Responsive resize ─────────────────────────────────────────────────
-        const onResize = () => {
-            const W2 = mount.clientWidth;
-            const H2 = mount.clientHeight;
-            camera.aspect = W2 / H2;
+        // ── Window Resize Handler ─────────────────────────────────────────────
+        const handleResize = () => {
+            if (!mount) return;
+            const w = mount.clientWidth;
+            const h = mount.clientHeight;
+            camera.aspect = w / h;
             camera.updateProjectionMatrix();
-            renderer.setSize(W2, H2);
-            if (composer) {
-                composer.setSize(W2, H2);
+            renderer.setSize(w, h);
+        };
+        window.addEventListener('resize', handleResize);
+
+        // Save references for dynamic state updates
+        sceneRefs.current = {
+            scene,
+            camera,
+            renderer,
+            controls,
+            rootGroup,
+            brainGroup,
+            lhGroup,
+            rhGroup,
+            lhMesh: () => lhMesh,
+            rhMesh: () => rhMesh,
+            lhWire: () => lhWire,
+            rhWire: () => rhWire,
+            brainMat,
+            brainWireMat,
+            brainUniforms,
+            clippingPlanes,
+            slicePlaneMesh,
+            pathologyGroup,
+            tumorCoreMesh,
+            tumorUniforms,
+            necroMesh,
+            edemaMesh,
+            marginMesh,
+            clearCaliper,
+            measureActive: false,
+            animId,
+            destroy: () => {
+                cancelAnimationFrame(animId);
+                window.removeEventListener('resize', handleResize);
+                renderer.domElement.removeEventListener('pointerdown', onCanvasPointerDown);
+                controls.dispose();
+                renderer.dispose();
+                if (mount.contains(renderer.domElement)) {
+                    mount.removeChild(renderer.domElement);
+                }
             }
         };
-        window.addEventListener('resize', onResize);
 
         return () => {
-            window.removeEventListener('click', onCanvasClick);
-            cancelAnimationFrame(animRef.current);
-            window.removeEventListener('resize', onResize);
-            if (composer) composer.dispose();
-            controls.dispose();
-            renderer.dispose();
-            if (mount.contains(renderer.domElement)) {
-                mount.removeChild(renderer.domElement);
-            }
+            sceneRefs.current?.destroy();
         };
-    }, [volumeData, therapy, mini, sliceY, enableSlicing]);
+    }, [mini]);
 
-    const displayVolume = typeof volumeData?.volume_cc === 'number'
-        ? volumeData.volume_cc
-        : (typeof volumeData?.volume?.volume_cc === 'number' ? volumeData.volume.volume_cc : null);
+    // ── Dynamic Updates (Runs WITHOUT re-creating scene) ──────────────────────
 
+    // 1. Update View Mode (Shading & Materials)
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        const { brainUniforms, lhMesh, rhMesh, lhWire, rhWire, brainMat } = sceneRefs.current;
+
+        const modeMap = {
+            anatomical: 0,
+            lobes: 1,
+            xray: 2,
+            radiologic: 3,
+        };
+
+        const isWire = viewMode === 'wireframe';
+        const lm = lhMesh();
+        const rm = rhMesh();
+        const lw = lhWire();
+        const rw = rhWire();
+
+        if (lm) lm.visible = !isWire;
+        if (rm) rm.visible = !isWire;
+        if (lw) lw.visible = isWire;
+        if (rw) rw.visible = isWire;
+
+        if (!isWire) {
+            brainUniforms.uMode.value = modeMap[viewMode] ?? 0;
+            // X-Ray mode defaults to translucent cortex
+            if (viewMode === 'xray') {
+                brainMat.depthWrite = false;
+            } else {
+                brainMat.depthWrite = cortexOpacity > 0.85;
+            }
+        }
+    }, [viewMode, cortexOpacity]);
+
+    // 2. Update Cortex Opacity
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        const { brainUniforms, brainMat } = sceneRefs.current;
+        brainUniforms.uOpacity.value = cortexOpacity;
+        brainMat.depthWrite = cortexOpacity > 0.85;
+    }, [cortexOpacity]);
+
+    // 3. Update Hemispheres & Exploded Split Distance
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        const { lhGroup, rhGroup } = sceneRefs.current;
+
+        // Visibility
+        lhGroup.visible = (hemisphere === 'both' || hemisphere === 'left') && visibility.cortex;
+        rhGroup.visible = (hemisphere === 'both' || hemisphere === 'right') && visibility.cortex;
+
+        // Exploded interhemispheric split along X
+        const splitX = hemisphere === 'both' ? splitDistance : 0;
+        lhGroup.position.x = -splitX;
+        rhGroup.position.x = splitX;
+    }, [hemisphere, splitDistance, visibility.cortex]);
+
+    // 4. Update Multi-Planar Slicing (MPR)
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        const { clippingPlanes, brainMat, brainWireMat, slicePlaneMesh } = sceneRefs.current;
+
+        if (!enableSlicing) {
+            brainMat.clippingPlanes = [];
+            brainWireMat.clippingPlanes = [];
+            slicePlaneMesh.visible = false;
+            return;
+        }
+
+        // Active plane according to selected axis
+        let activePlane = null;
+        if (sliceAxis === 'axial') {
+            activePlane = clippingPlanes.axial;
+            activePlane.normal.set(0, -1, 0); // Cuts superior to inferior
+            activePlane.constant = slicePos;
+            slicePlaneMesh.rotation.set(-Math.PI / 2, 0, 0);
+            slicePlaneMesh.position.set(0, slicePos, 0);
+        } else if (sliceAxis === 'coronal') {
+            activePlane = clippingPlanes.coronal;
+            activePlane.normal.set(0, 0, -1); // Cuts anterior to posterior
+            activePlane.constant = slicePos;
+            slicePlaneMesh.rotation.set(0, 0, 0);
+            slicePlaneMesh.position.set(0, 0, slicePos);
+        } else {
+            activePlane = clippingPlanes.sagittal;
+            activePlane.normal.set(-1, 0, 0); // Cuts left to right
+            activePlane.constant = slicePos;
+            slicePlaneMesh.rotation.set(0, Math.PI / 2, 0);
+            slicePlaneMesh.position.set(slicePos, 0, 0);
+        }
+
+        brainMat.clippingPlanes = [activePlane];
+        brainWireMat.clippingPlanes = [activePlane];
+        slicePlaneMesh.visible = visibility.slicePlane;
+    }, [enableSlicing, sliceAxis, slicePos, visibility.slicePlane]);
+
+    // 5. Update Tumor Pathology & Therapy Regression Simulation
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        const { tumorCoreMesh, necroMesh, edemaMesh, marginMesh, tumorUniforms } = sceneRefs.current;
+
+        // Volume scale factor
+        const volScale = Math.cbrt(currentVolumeCc / 52.8);
+
+        // Core shrinks with therapy
+        tumorCoreMesh.scale.setScalar(volScale);
+        tumorUniforms.uTherapy.value = therapy;
+
+        // Necrotic core collapses or cavitates
+        necroMesh.scale.setScalar(volScale * (0.85 + therapy * 0.15));
+
+        // Edema zone shrinks significantly with targeted treatment
+        const edemaScale = volScale * (1.0 - therapy * 0.18);
+        edemaMesh.scale.setScalar(edemaScale);
+
+        // Surgical safety margin scale
+        const marginScale = volScale * (1.0 + marginDistance / 20.0);
+        marginMesh.scale.setScalar(marginScale);
+
+        // Layer visibility
+        tumorCoreMesh.visible = visibility.tumorCore;
+        necroMesh.visible = visibility.necroticZone;
+        edemaMesh.visible = visibility.infiltration;
+        marginMesh.visible = visibility.margin;
+    }, [currentVolumeCc, therapy, marginDistance, visibility]);
+
+    // 6. Update Auto-Rotate
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        sceneRefs.current.controls.autoRotate = autoRotate;
+    }, [autoRotate]);
+
+    // 7. Update Caliper Mode
+    useEffect(() => {
+        if (!sceneRefs.current) return;
+        sceneRefs.current.measureActive = measureActive;
+        if (measureActive) {
+            sceneRefs.current.controls.enabled = false;
+        } else {
+            sceneRefs.current.controls.enabled = true;
+        }
+    }, [measureActive]);
+
+    // ── Functional Medical Actions ────────────────────────────────────────────
+
+    // Camera preset orientation tweening
+    const setAnatomicalView = useCallback((preset) => {
+        if (!sceneRefs.current) return;
+        const { camera, controls } = sceneRefs.current;
+        controls.reset();
+
+        const dist = 240;
+        if (preset === 'axial') {
+            // Superior / Top-Down View
+            camera.position.set(0, dist, 0);
+            camera.up.set(0, 0, -1);
+        } else if (preset === 'coronal') {
+            // Anterior / Frontal View
+            camera.position.set(0, 0, dist);
+            camera.up.set(0, 1, 0);
+        } else if (preset === 'sagittal_l') {
+            // Sagittal Left View
+            camera.position.set(-dist, 0, 0);
+            camera.up.set(0, 1, 0);
+        } else if (preset === 'sagittal_r') {
+            // Sagittal Right View
+            camera.position.set(dist, 0, 0);
+            camera.up.set(0, 1, 0);
+        } else {
+            // Isometric 3D
+            camera.position.set(130, 95, 170);
+            camera.up.set(0, 1, 0);
+        }
+        controls.target.set(0, 0, 0);
+        controls.update();
+    }, []);
+
+    // High-Resolution Snapshot with Clinical Report Watermark
+    const handleDownloadSnapshot = useCallback(() => {
+        if (!sceneRefs.current) return;
+        const { renderer } = sceneRefs.current;
+
+        const glCanvas = renderer.domElement;
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = glCanvas.width;
+        offCanvas.height = glCanvas.height;
+        const ctx = offCanvas.getContext('2d');
+
+        // Draw WebGL scene
+        ctx.drawImage(glCanvas, 0, 0);
+
+        // Draw Clinical Watermark Banner
+        const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        ctx.fillStyle = 'rgba(7, 11, 18, 0.88)';
+        ctx.fillRect(16, 16, 440, 90);
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(16, 16, 440, 90);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 15px monospace';
+        ctx.fillText('NEURODIGITAL TWIN | 3D SURGICAL RECONSTRUCTION', 32, 42);
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '12px monospace';
+        ctx.fillText(`Patient ID: #NDT-001 | Vol: ${currentVolumeCc.toFixed(1)} cc`, 32, 64);
+        ctx.fillText(`View: ${viewMode.toUpperCase()} | Time: ${now} UTC`, 32, 84);
+
+        // Scale bar in bottom right
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(offCanvas.width - 120, offCanvas.height - 30);
+        ctx.lineTo(offCanvas.width - 40, offCanvas.height - 30);
+        ctx.stroke();
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '11px monospace';
+        ctx.fillText('20 mm Scale', offCanvas.width - 110, offCanvas.height - 38);
+
+        // Download PNG
+        const link = document.createElement('a');
+        link.download = `NDT_3D_Reconstruction_${Date.now()}.png`;
+        link.href = offCanvas.toDataURL('image/png');
+        link.click();
+    }, [currentVolumeCc, viewMode]);
+
+    // Fullscreen Viewport Toggle
+    const handleToggleFullscreen = () => {
+        if (!containerRef.current) return;
+        if (!document.fullscreenElement) {
+            containerRef.current.requestFullscreen().catch(() => {});
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen().catch(() => {});
+            setIsFullscreen(false);
+        }
+    };
+
+    // ── Mini Mode (Dashboard Thumbnail) ───────────────────────────────────────
     if (mini) {
-        return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
+        return (
+            <div
+                ref={mountRef}
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    position: 'relative',
+                    background: '#090d14',
+                    borderRadius: 8,
+                    overflow: 'hidden'
+                }}
+            >
+                {loading && (
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#090d14',
+                        color: '#38bdf8',
+                        fontSize: 11,
+                        fontFamily: 'monospace'
+                    }}>
+                        Loading 3D Twin...
+                    </div>
+                )}
+            </div>
+        );
     }
 
+    // ── Full Clinical Workstation ─────────────────────────────────────────────
     return (
-        <div className="fade-in">
-            <div className="section-header">
+        <div className="fade-in" ref={containerRef}>
+            {/* Header */}
+            <div className="section-header" style={{ marginBottom: 16 }}>
                 <div>
-                    <div className="section-title">High-Fidelity Clinical 3D Reconstruction</div>
+                    <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Sparkles size={22} color="var(--cyan)" />
+                        Clinical High-Fidelity 3D Neuro-Reconstruction
+                    </div>
                     <div className="section-subtitle" style={{ color: 'var(--text-muted)' }}>
-                        Interactive clinical-grade MRI-derived multi-surface anatomical model
+                        Interactive multi-surface cortical segmentation, intraoperative multi-planar MPR, and glioblastoma digital twin
                     </div>
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 16 }}>
-                {/* 3D Viewer Container */}
-                <div className="card" style={{ padding: 0, position: 'relative', overflow: 'hidden', background: '#0b0f14', height: 600, border: enableSlicing ? '2px solid var(--cyan)' : '1px solid #1e293b', boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)' }}>
-
+            {/* Main Workstation Layout */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 18 }}>
+                
+                {/* 3D Canvas Container */}
+                <div
+                    className="card"
+                    style={{
+                        padding: 0,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        background: '#070b12',
+                        height: isFullscreen ? '100vh' : 630,
+                        border: enableSlicing ? '2px solid #0284c7' : '1px solid #1e293b',
+                        borderRadius: 14,
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+                        cursor: measureActive ? 'crosshair' : 'grab',
+                    }}
+                >
+                    {/* Loading Screen */}
                     {loading && (
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(11, 15, 20, 0.85)', zIndex: 10, backdropFilter: 'blur(8px)' }}>
-                            <div style={{ width: 44, height: 44, border: '4px solid #1e293b', borderTopColor: '#3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: 16 }} />
-                            <div style={{ fontWeight: 600, fontSize: 16, color: '#f8fafc' }}>Synthesizing Extreme-Fidelity Mesh...</div>
-                            <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 6 }}>Calculating lighting dynamics and vascular curvature</div>
+                        <div style={{
+                            position: 'absolute',
+                            inset: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(7, 11, 18, 0.94)',
+                            zIndex: 30,
+                            backdropFilter: 'blur(8px)',
+                        }}>
+                            <div style={{
+                                width: 52,
+                                height: 52,
+                                border: '4px solid #1e293b',
+                                borderTopColor: '#0284c7',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite',
+                                marginBottom: 16
+                            }} />
+                            <div style={{ fontWeight: 600, fontSize: 16, color: '#f8fafc', letterSpacing: 0.5 }}>
+                                Synthesizing High-Fidelity Cortical Geometry...
+                            </div>
+                            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6, fontFamily: 'monospace' }}>
+                                Computing sulcal depth vectors & multi-compartment glioblastoma model ({loadingProgress}%)
+                            </div>
                         </div>
                     )}
 
                     {/* Canvas Mount */}
-                    <div ref={mountRef} style={{ width: '100%', height: '100%', cursor: 'grab', opacity: loading ? 0 : 1, transition: 'opacity 0.8s' }} />
+                    <div
+                        ref={mountRef}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            opacity: loading ? 0 : 1,
+                            transition: 'opacity 0.6s ease',
+                        }}
+                    />
 
-                    {/* UI Overlays matching professional references */}
+                    {/* ══ Overlay 1: Top-Left Hemispheres & Exploded Split ═══════ */}
                     {!loading && (
-                        <>
-                            {/* Top Left Dropdown Stub */}
-                            <div style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.9)', padding: '6px 12px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 13, fontWeight: 600, color: '#334155', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                                Left & Right Cerebral Hemispheres <span style={{ fontSize: 9 }}>▼</span>
+                        <div style={{
+                            position: 'absolute',
+                            top: 14,
+                            left: 14,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            background: 'rgba(15, 23, 42, 0.88)',
+                            padding: '6px 10px',
+                            borderRadius: 8,
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            backdropFilter: 'blur(10px)',
+                            zIndex: 10,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8' }}>Structure:</span>
+                            <div style={{ display: 'flex', background: 'rgba(30, 41, 59, 0.8)', borderRadius: 6, padding: 2 }}>
+                                {[
+                                    { id: 'both', label: 'Bilateral' },
+                                    { id: 'left', label: 'LH Only' },
+                                    { id: 'right', label: 'RH Only' },
+                                ].map(btn => (
+                                    <button
+                                        key={btn.id}
+                                        onClick={() => setHemisphere(btn.id)}
+                                        style={{
+                                            border: 'none',
+                                            background: hemisphere === btn.id ? '#0284c7' : 'transparent',
+                                            color: hemisphere === btn.id ? '#ffffff' : '#94a3b8',
+                                            padding: '4px 8px',
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            borderRadius: 4,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease',
+                                        }}
+                                    >
+                                        {btn.label}
+                                    </button>
+                                ))}
                             </div>
+                        </div>
+                    )}
 
-                            {/* Quantitative Overlay */}
-                            <div className="overlay-metrics" style={{ position: 'absolute', top: 60, left: 16, width: 280, color: '#f8fafc', fontSize: 13, lineHeight: 1.6, background: 'rgba(15, 23, 42, 0.85)', padding: 16, borderRadius: 8, backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'monospace' }}>
-                                <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Quantitative Analysis</div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <span>Tumor Volume:</span>
-                                    <span style={{ fontWeight: 600, color: '#38bdf8' }}>
-                                        {displayVolume !== null ? `${displayVolume.toFixed(2)} cc` : 'No data'}
-                                    </span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <span>Growth Rate α:</span>
-                                    <span style={{ fontWeight: 600, color: '#fbbf24' }}>
-                                        {volumeData?.alpha != null ? `${Number(volumeData.alpha).toFixed(3)} /day` : 'No data'}
-                                    </span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <span>Risk Class:</span>
-                                    <span style={{ fontWeight: 600, color: volumeData && volumeData.risk === 'High' ? '#ef4444' : '#10b981' }}>
-                                        {volumeData?.risk || (displayVolume !== null ? 'Assessed' : 'No data')}
-                                    </span>
-                                </div>
-                            </div>
+                    {/* ══ Overlay 2: Top-Right Functional Medical Toolbar ════════ */}
+                    {!loading && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 14,
+                            right: 14,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            background: 'rgba(15, 23, 42, 0.88)',
+                            padding: '4px 6px',
+                            borderRadius: 8,
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            backdropFilter: 'blur(10px)',
+                            zIndex: 10,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        }}>
+                            {/* Measure Calipers */}
+                            <button
+                                title={measureActive ? "Click 2 points on model to measure" : "Calipers: Measure distance (mm)"}
+                                onClick={() => {
+                                    if (measureActive) {
+                                        sceneRefs.current?.clearCaliper();
+                                    }
+                                    setMeasureActive(!measureActive);
+                                }}
+                                style={{
+                                    border: 'none',
+                                    background: measureActive ? '#0284c7' : 'transparent',
+                                    color: measureActive ? '#ffffff' : '#cbd5e1',
+                                    padding: '6px 8px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                }}
+                            >
+                                <Ruler size={15} />
+                                {measureActive ? 'Measuring...' : 'Measure'}
+                            </button>
 
-                            {/* Toolbar Stub Top Right */}
-                            <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', background: 'rgba(255,255,255,0.9)', borderRadius: 6, border: '1px solid #cbd5e1', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                                {['✎', '🔍', '📷', '↻', '⛶'].map((icon, i) => (
-                                    <div key={i} style={{ padding: '6px 14px', fontSize: 14, cursor: 'pointer', borderRight: i < 4 ? '1px solid #cbd5e1' : 'none', color: '#475569' }}>
-                                        {icon}
-                                    </div>
+                            <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+                            {/* Camera Presets Selector */}
+                            <div style={{ display: 'flex', gap: 2 }}>
+                                {[
+                                    { id: 'axial', label: 'AX', title: 'Axial (Superior)' },
+                                    { id: 'coronal', label: 'COR', title: 'Coronal (Anterior)' },
+                                    { id: 'sagittal_l', label: 'SAG', title: 'Sagittal (Left)' },
+                                    { id: 'iso', label: '3D', title: 'Isometric 3D' },
+                                ].map(preset => (
+                                    <button
+                                        key={preset.id}
+                                        title={preset.title}
+                                        onClick={() => setAnatomicalView(preset.id)}
+                                        style={{
+                                            border: 'none',
+                                            background: 'transparent',
+                                            color: '#94a3b8',
+                                            padding: '4px 6px',
+                                            borderRadius: 4,
+                                            cursor: 'pointer',
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            fontFamily: 'monospace',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = '#38bdf8'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+                                    >
+                                        {preset.label}
+                                    </button>
                                 ))}
                             </div>
 
-                            {/* Slicing Control Bottom */}
-                            <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16, background: 'rgba(255,255,255,0.9)', padding: '12px 20px', borderRadius: 8, border: '1px solid #cbd5e1', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => setEnableSlicing(!enableSlicing)}>
-                                    <input type="checkbox" checked={enableSlicing} readOnly style={{ accentColor: '#3b82f6', width: 14, height: 14 }} />
-                                    Structure Isolation:
+                            <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+
+                            {/* Auto-Rotate */}
+                            <button
+                                title={autoRotate ? "Pause Turntable" : "Start Auto-Rotate Turntable"}
+                                onClick={() => setAutoRotate(!autoRotate)}
+                                style={{
+                                    border: 'none',
+                                    background: autoRotate ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                                    color: autoRotate ? '#38bdf8' : '#cbd5e1',
+                                    padding: '6px 8px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <RotateCw size={15} />
+                            </button>
+
+                            {/* Download Snapshot */}
+                            <button
+                                title="Download High-Res Clinical Snapshot (PNG)"
+                                onClick={handleDownloadSnapshot}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#cbd5e1',
+                                    padding: '6px 8px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.color = '#38bdf8'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.color = '#cbd5e1'; }}
+                            >
+                                <Camera size={15} />
+                            </button>
+
+                            {/* Layers Toggle */}
+                            <button
+                                title="Toggle Layer Visibility"
+                                onClick={() => setShowLayers(!showLayers)}
+                                style={{
+                                    border: 'none',
+                                    background: showLayers ? '#0284c7' : 'transparent',
+                                    color: showLayers ? '#ffffff' : '#cbd5e1',
+                                    padding: '6px 8px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <Layers size={15} />
+                            </button>
+
+                            {/* Fullscreen */}
+                            <button
+                                title="Toggle Fullscreen"
+                                onClick={handleToggleFullscreen}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: '#cbd5e1',
+                                    padding: '6px 8px',
+                                    borderRadius: 6,
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ══ Overlay 3: Layers Dropdown Popover ═════════════════════ */}
+                    {showLayers && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 56,
+                            right: 14,
+                            width: 220,
+                            background: 'rgba(15, 23, 42, 0.95)',
+                            padding: 12,
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            backdropFilter: 'blur(12px)',
+                            zIndex: 25,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                        }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>
+                                Anatomical Layers
+                            </div>
+                            {[
+                                { key: 'cortex', label: 'Cerebral Cortex' },
+                                { key: 'tumorCore', label: 'Active Tumor Core' },
+                                { key: 'necroticZone', label: 'Hypoxic Necrosis' },
+                                { key: 'infiltration', label: 'FLAIR Edema Halo' },
+                                { key: 'margin', label: 'Resection Margin' },
+                                { key: 'slicePlane', label: 'Cutting Plane Grid' },
+                            ].map(item => (
+                                <label
+                                    key={item.key}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        fontSize: 12,
+                                        color: '#f8fafc',
+                                        marginBottom: 6,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={visibility[item.key]}
+                                        onChange={(e) => setVisibility({ ...visibility, [item.key]: e.target.checked })}
+                                        style={{ accentColor: '#0284c7' }}
+                                    />
+                                    {item.label}
+                                </label>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* ══ Overlay 4: Live Quantitative Medical Metrics ═══════════ */}
+                    {!loading && (
+                        <div style={{
+                            position: 'absolute',
+                            bottom: enableSlicing ? 80 : 16,
+                            left: 14,
+                            width: 260,
+                            background: 'rgba(15, 23, 42, 0.88)',
+                            padding: '12px 14px',
+                            borderRadius: 10,
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            backdropFilter: 'blur(10px)',
+                            zIndex: 10,
+                            fontFamily: 'monospace',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                            transition: 'bottom 0.2s ease',
+                        }}>
+                            <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                                Quantitative Morphometry
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                                <span style={{ color: '#cbd5e1' }}>Gross Tumor (GTV):</span>
+                                <span style={{ fontWeight: 700, color: '#38bdf8' }}>{currentVolumeCc.toFixed(1)} cc</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                                <span style={{ color: '#cbd5e1' }}>Edema/FLAIR:</span>
+                                <span style={{ fontWeight: 600, color: '#f59e0b' }}>{edemaVolumeCc} cc</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                                <span style={{ color: '#cbd5e1' }}>Necrotic Ratio:</span>
+                                <span style={{ fontWeight: 600, color: '#10b981' }}>{necroticRatioPct}%</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                <span style={{ color: '#cbd5e1' }}>Safety Clearance:</span>
+                                <span style={{ fontWeight: 600, color: '#38bdf8' }}>{marginDistance} mm (Safe)</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ══ Overlay 5: Caliper Measurement HUD Badge ═══════════════ */}
+                    {measuredDistance !== null && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 64,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: 'rgba(2, 132, 199, 0.95)',
+                            padding: '8px 16px',
+                            borderRadius: 20,
+                            color: '#ffffff',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            boxShadow: '0 4px 20px rgba(2, 132, 199, 0.4)',
+                            zIndex: 15,
+                        }}>
+                            <span>📏 Distance: {measuredDistance} mm</span>
+                            <button
+                                onClick={() => sceneRefs.current?.clearCaliper()}
+                                style={{
+                                    border: 'none',
+                                    background: 'rgba(255,255,255,0.25)',
+                                    color: '#ffffff',
+                                    borderRadius: '50%',
+                                    width: 18,
+                                    height: 18,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    fontSize: 11,
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ══ Overlay 6: Slicing Plane MPR Controls ══════════════════ */}
+                    {!loading && enableSlicing && (
+                        <div style={{
+                            position: 'absolute',
+                            bottom: 14,
+                            left: 14,
+                            right: 14,
+                            background: 'rgba(15, 23, 42, 0.92)',
+                            padding: '10px 16px',
+                            borderRadius: 10,
+                            border: '1px solid #0284c7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 14,
+                            backdropFilter: 'blur(10px)',
+                            zIndex: 15,
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
+                                <Scissors size={15} />
+                                Multi-Planar Slice:
+                            </div>
+
+                            {/* Slice Axis Selector */}
+                            <div style={{ display: 'flex', background: 'rgba(30, 41, 59, 0.8)', borderRadius: 6, padding: 2 }}>
+                                {[
+                                    { id: 'axial', label: 'Axial' },
+                                    { id: 'coronal', label: 'Coronal' },
+                                    { id: 'sagittal', label: 'Sagittal' },
+                                ].map(axis => (
+                                    <button
+                                        key={axis.id}
+                                        onClick={() => setSliceAxis(axis.id)}
+                                        style={{
+                                            border: 'none',
+                                            background: sliceAxis === axis.id ? '#0284c7' : 'transparent',
+                                            color: sliceAxis === axis.id ? '#ffffff' : '#94a3b8',
+                                            padding: '4px 10px',
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            borderRadius: 4,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        {axis.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Position Slider */}
+                            <input
+                                type="range"
+                                min={-65}
+                                max={65}
+                                step={1}
+                                value={slicePos}
+                                onChange={(e) => setSlicePos(parseFloat(e.target.value))}
+                                style={{ flex: 1, accentColor: '#0284c7', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#f8fafc', minWidth: 60, textAlign: 'right' }}>
+                                {slicePos > 0 ? `+${slicePos}` : slicePos} mm
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Scale Reference Bar */}
+                    <div style={{
+                        position: 'absolute',
+                        bottom: enableSlicing ? 80 : 20,
+                        right: 20,
+                        borderBottom: '2px solid #64748b',
+                        borderLeft: '2px solid #64748b',
+                        borderRight: '2px solid #64748b',
+                        height: 6,
+                        width: 70,
+                        color: '#94a3b8',
+                        fontSize: 10,
+                        textAlign: 'center',
+                        lineHeight: '0px',
+                        fontFamily: 'monospace',
+                        pointerEvents: 'none',
+                    }}>
+                        20 mm
+                    </div>
+                </div>
+
+                {/* ══ Right Panel: Clinical Controls & Surgical Settings ════════ */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    
+                    {/* Card 1: Anatomical View Mode Selector */}
+                    <div className="card">
+                        <div className="card-title-colored" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Layers size={16} />
+                            Anatomical Shading & View Modes
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6, marginBottom: 12 }}>
+                            {[
+                                { id: 'anatomical', label: 'Clinical Realistic', desc: 'Living cortex & sulci depth' },
+                                { id: 'lobes', label: 'Cortical Lobes', desc: 'Frontal/Parietal/Temporal' },
+                                { id: 'xray', label: 'Glass Brain (X-Ray)', desc: 'Transparent tumor view' },
+                                { id: 'wireframe', label: 'Digital Twin Mesh', desc: 'Cyber-neuro lattice' },
+                            ].map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setViewMode(item.id)}
+                                    style={{
+                                        border: viewMode === item.id ? '1.5px solid #0284c7' : '1px solid var(--border)',
+                                        background: viewMode === item.id ? 'rgba(2, 132, 199, 0.08)' : 'var(--bg-input)',
+                                        borderRadius: 8,
+                                        padding: '8px 10px',
+                                        textAlign: 'left',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                >
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: viewMode === item.id ? '#0284c7' : 'var(--text-primary)' }}>
+                                        {item.label}
+                                    </div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                                        {item.desc}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Cortex Transparency Slider */}
+                        <div style={{ marginBottom: 10 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Cortex Transparency:</span>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{Math.round(cortexOpacity * 100)}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min={0.08}
+                                max={1.0}
+                                step={0.02}
+                                value={cortexOpacity}
+                                onChange={(e) => setCortexOpacity(parseFloat(e.target.value))}
+                                style={{ width: '100%', accentColor: 'var(--cyan)', cursor: 'pointer' }}
+                            />
+                        </div>
+
+                        {/* Interhemispheric Exploded Split Slider */}
+                        {hemisphere === 'both' && (
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Interhemispheric Fissure Split:</span>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>+{splitDistance} mm</span>
                                 </div>
                                 <input
                                     type="range"
-                                    min={-80} max={80} step={1.0}
-                                    value={sliceY}
-                                    disabled={!enableSlicing}
-                                    onChange={(e) => setSliceY(parseFloat(e.target.value))}
-                                    style={{ flex: 1, accentColor: '#3b82f6', cursor: enableSlicing ? 'pointer' : 'not-allowed', opacity: enableSlicing ? 1 : 0.4 }}
+                                    min={0}
+                                    max={40}
+                                    step={1}
+                                    value={splitDistance}
+                                    onChange={(e) => setSplitDistance(parseInt(e.target.value, 10))}
+                                    style={{ width: '100%', accentColor: 'var(--cyan)', cursor: 'pointer' }}
                                 />
                             </div>
-
-                            {/* Scale Bar */}
-                            <div className="scale-bar" style={{ position: 'absolute', bottom: 80, right: 30, borderBottom: '2px solid #cbd5e1', borderLeft: '2px solid #cbd5e1', borderRight: '2px solid #cbd5e1', height: 8, width: 60, color: '#cbd5e1', fontSize: 11, textAlign: 'center', lineHeight: '0px', fontFamily: 'monospace', pointerEvents: 'none' }}>
-                                10 mm
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Controls & Details panel */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div className="card">
-                        <div className="card-title-colored" style={{ marginBottom: 12 }}>Real-time Reconstruction Settings</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Data Source</span>
-                            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{volumeData ? 'Live MRI Data' : 'No Data'}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Resolution</span>
-                            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>1mm³ Isotropic</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 8, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
-                            <span style={{ color: 'var(--text-muted)' }}>Rendering Quality</span>
-                            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Clinical Grade</span>
-                        </div>
+                        )}
                     </div>
 
+                    {/* Card 2: Dynamic Therapy Simulation */}
                     <div className="card">
-                        <div className="card-title-colored" style={{ marginBottom: 8 }}>Therapy Response Analysis</div>
-                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.4 }}>
-                            {displayVolume !== null ? 
-                                `Observe biological reduction and necrosis inside the mapped malignant core. Current volume: ${displayVolume.toFixed(2)} cc` :
-                                'Upload MRI data or select a patient to visualize therapy response and tumor dynamics.'
-                            }
+                        <div className="card-title-colored" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Activity size={16} />
+                            Digital Twin Therapy Simulator
+                        </div>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.4 }}>
+                            Simulate longitudinal glioblastoma response to targeted oncological protocols in real-time.
                         </p>
-                        <input
-                            type="range"
-                            min={0} max={3} step={0.5}
-                            value={therapy}
-                            onChange={e => setTherapy(Number(e.target.value))}
-                            style={{ width: '100%', accentColor: 'var(--cyan)', cursor: 'pointer', height: 4 }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-                            <span>Pre-tx</span>
-                            <span>Std Regimen</span>
-                            <span>Targeted</span>
+
+                        <div style={{ marginBottom: 12 }}>
+                            <input
+                                type="range"
+                                min={0}
+                                max={3}
+                                step={1}
+                                value={therapy}
+                                onChange={e => setTherapy(Number(e.target.value))}
+                                style={{ width: '100%', accentColor: 'var(--cyan)', cursor: 'pointer' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                                <span>Pre-Treatment</span>
+                                <span>Std Stupp</span>
+                                <span>Targeted</span>
+                                <span>Remission</span>
+                            </div>
+                        </div>
+
+                        {/* Live Volume & Margin Badges */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, background: 'var(--bg-input)', padding: 10, borderRadius: 8 }}>
+                            <div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Volume</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#ef4444' }}>
+                                    {currentVolumeCc.toFixed(1)} cc
+                                </div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Volume Delta</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: therapyReductionRatio > 0 ? '#10b981' : 'var(--text-primary)' }}>
+                                    {therapyReductionRatio > 0 ? `-${(therapyReductionRatio * 100).toFixed(0)}%` : 'Baseline'}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
+                    {/* Card 3: Multi-Planar Slicing Toggle */}
                     <div className="card">
-                        <div className="card-title-colored" style={{ marginBottom: 12 }}>Volumetric Legend</div>
-                        {[
-                            { color: '#ffe6d5', label: 'Healthy Cortex (Fleshy Surface)' },
-                            { color: '#8c2626', label: 'Vascular Sulci (Curvature Depth)' },
-                            { color: '#38bdf8', label: 'Clinical Slicing Plane' },
-                            { color: '#ef4444', label: 'Malignant Focus (Active)' },
-                            { color: '#10b981', label: 'Necrotic Core (Remission)' },
-                        ].map(item => (
-                            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, fontSize: 12 }}>
-                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, flexShrink: 0, border: '1px solid rgba(0,0,0,0.1)' }} />
-                                <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <div className="card-title-colored" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Scissors size={16} />
+                                Cross-Sectional MPR Slicing
                             </div>
-                        ))}
+                            <input
+                                type="checkbox"
+                                checked={enableSlicing}
+                                onChange={(e) => setEnableSlicing(e.target.checked)}
+                                style={{ accentColor: '#0284c7', width: 16, height: 16, cursor: 'pointer' }}
+                            />
+                        </div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                            {enableSlicing
+                                ? 'Active: Use the bottom viewport controls to adjust cutting axis (Axial, Coronal, Sagittal).'
+                                : 'Toggle to slice through brain parenchyma and inspect deep glioblastoma core coordinates.'}
+                        </p>
+                    </div>
+
+                    {/* Card 4: Volumetric Anatomical Legend */}
+                    <div className="card">
+                        <div className="card-title-colored" style={{ marginBottom: 10 }}>
+                            Anatomical & Pathology Legend
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                            {[
+                                { color: '#f5ebe0', label: 'Living Gyri (Cortical Surface)' },
+                                { color: '#581c1c', label: 'Vascular Sulci (Deep Fissure Crevices)' },
+                                { color: '#ef4444', label: 'Active Enhancing Tumor Core (GTV)' },
+                                { color: '#064e3b', label: 'Hypoxic Necrotic Cavity' },
+                                { color: '#f59e0b', label: 'Infiltration / FLAIR Edema Halo' },
+                                { color: '#38bdf8', label: '15mm Surgical Resection Safety Boundary' },
+                            ].map(item => (
+                                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 11 }}>
+                                    <div style={{
+                                        width: 11,
+                                        height: 11,
+                                        borderRadius: '50%',
+                                        background: item.color,
+                                        flexShrink: 0,
+                                        border: '1px solid rgba(0,0,0,0.15)'
+                                    }} />
+                                    <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{item.label}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
-            {/* Adding the CSS spin animation keyframes globally if not exists */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @keyframes spin { 100% { transform: rotate(360deg); } }
-            `}} />
         </div>
     );
 }
-
