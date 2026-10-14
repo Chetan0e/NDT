@@ -138,7 +138,9 @@ NeuroDigital Twin (NDT)/
 │   └── src/
 │       ├── App.js              ← Root component + navigation router
 │       ├── api.js              ← All API calls to backend
-│       ├── index.css           ← Global styles (dark theme)
+│       ├── api.test.js         ← Frontend API unit tests
+│       ├── index.css           ← Global styles & clinical design tokens
+│       ├── index.js            ← React DOM root entry
 │       ├── 🗂️ components/
 │       │   ├── Dashboard.js    ← Executive KPI dashboard
 │       │   ├── PatientPanel.js ← Patient directory & management
@@ -151,7 +153,9 @@ NeuroDigital Twin (NDT)/
 │       │   ├── Survival.js     ← Kaplan-Meier survival curves
 │       │   ├── Reports.js      ← Clinical tumor board reports
 │       │   ├── Settings.js     ← Platform diagnostics & settings
+│       │   ├── HowToUse.js     ← Interactive clinical workflow guide
 │       │   └── Logo.js         ← SVG logo component
+│       ├── 🗂️ constants/       ← Clinical constants & defaults
 │       └── 🗂️ utils/           ← Frontend helper utilities
 │
 └── 🗂️ tests/
